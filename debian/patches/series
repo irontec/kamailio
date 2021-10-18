@@ -9,3 +9,4 @@
 009_lcr_ping_gw_id.patch
 010_dialog_profile_end.patch
 011_pua_trying_presentity.patch
+012_t_suspend_memleak.patch
