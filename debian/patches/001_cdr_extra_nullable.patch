@@ -1,0 +1,114 @@
+commit 6642f99c238c76c391aea841155704a3e9469729
+Author: Carlos Cruz <carlos@irontec.com>
+Date:   Fri Dec 22 17:29:12 2017 +0100
+
+    acc: Allow nullable cdr extra fields
+    
+    - allow custom cdr fields defined with cdr_extra modparam to be saved
+      as null. Before this change, cdr_extra variables not defined in config
+      operation (or set to $null) were saved as empty string (''). This commit makes
+      possible to save them as NULL value.
+    
+    - new modparam to make this behaviour configurable: cdr_extra_nullable.
+      Set it to 1 to enable this new behaviour (default value: 0)
+
+diff --git a/src/modules/acc/acc_cdr.c b/src/modules/acc/acc_cdr.c
+index f29f139e2..6a7862dd7 100644
+--- a/src/modules/acc/acc_cdr.c
++++ b/src/modules/acc/acc_cdr.c
+@@ -238,9 +238,14 @@ static int db_write_cdr( struct dlg_cell* dialog,
+ 
+ 	for( ; i<m; i++) {
+ 		db_cdr_keys[i] = &cdr_attrs[i];
+-		VAL_TYPE(db_cdr_vals+i)=DB1_STR;
+-		VAL_NULL(db_cdr_vals+i)=0;
+-		VAL_STR(db_cdr_vals+i) = cdr_value_array[i];
++
++		if (cdr_extra_nullable == 1 && cdr_type_array[i] == TYPE_NULL) {
++			VAL_NULL(db_cdr_vals + i) = 1;
++		} else {
++			VAL_TYPE(db_cdr_vals+i)=DB1_STR;
++			VAL_NULL(db_cdr_vals+i)=0;
++			VAL_STR(db_cdr_vals+i) = cdr_value_array[i];
++		}
+ 	}
+ 
+ 	if (df->use_table(dh, &acc_cdrs_table /*table*/) < 0) {
+diff --git a/src/modules/acc/acc_mod.c b/src/modules/acc/acc_mod.c
+index 2de42e8e8..959bd8b0c 100644
+--- a/src/modules/acc/acc_mod.c
++++ b/src/modules/acc/acc_mod.c
+@@ -115,6 +115,7 @@ struct acc_extra *log_extra = 0; /*!< Log extra attributes */
+ /*@{*/
+ 
+ int cdr_enable  = 0;
++int cdr_extra_nullable  = 0;
+ int cdr_log_enable  = 1;
+ int cdr_start_on_confirmed = 0;
+ int cdr_expired_dlg_enable = 0;
+@@ -204,6 +205,7 @@ static param_export_t params[] = {
+ 	{"cdr_start_on_confirmed", INT_PARAM, &cdr_start_on_confirmed   },
+ 	{"cdr_facility",         PARAM_STRING, &cdr_facility_str           },
+ 	{"cdr_extra",            PARAM_STRING, &cdr_log_extra_str          },
++	{"cdr_extra_nullable",   INT_PARAM, &cdr_extra_nullable            },
+ 	{"cdr_start_id",	 PARAM_STR, &cdr_start_str		},
+ 	{"cdr_end_id",		 PARAM_STR, &cdr_end_str		},
+ 	{"cdr_duration_id",	 PARAM_STR, &cdr_duration_str	},
+@@ -474,6 +476,12 @@ static int mod_init( void )
+ 		return -1;
+ 	}
+ 
++	if( cdr_extra_nullable < 0 || cdr_extra_nullable > 1)
++	{
++		LM_ERR("cdr_extra_nullable is out of range\n");
++		return -1;
++	}
++
+ 	if( cdr_expired_dlg_enable < 0 || cdr_expired_dlg_enable > 1)
+ 	{
+ 		LM_ERR("cdr_expired_dlg_enable is out of range\n");
+diff --git a/src/modules/acc/acc_mod.h b/src/modules/acc/acc_mod.h
+index 220bce41a..a28721cde 100644
+--- a/src/modules/acc/acc_mod.h
++++ b/src/modules/acc/acc_mod.h
+@@ -49,6 +49,7 @@ extern int log_flag;
+ extern int log_missed_flag;
+ 
+ extern int cdr_enable;
++extern int cdr_extra_nullable;
+ extern int cdr_start_on_confirmed;
+ extern int cdr_log_facility;
+ extern int cdr_expired_dlg_enable;
+diff --git a/src/modules/acc/doc/acc_admin.xml b/src/modules/acc/doc/acc_admin.xml
+index e9efa8f5e..36022585b 100644
+--- a/src/modules/acc/doc/acc_admin.xml
++++ b/src/modules/acc/doc/acc_admin.xml
+@@ -1197,6 +1197,28 @@ modparam("acc", "cdr_extra", "c1=$dlg_var(caller);c2=$dlg_var(callee)"
+ </programlisting>
+ 		</example>
+ 	</section>
++	<section id="acc.p.cdr_extra_nullable">
++		<title><varname>cdr_extra_nullable</varname> (integer)</title>
++		<para>
++		Should custom CDR fields be saved as NULL?
++		</para>
++		<para>
++		If set to 0, custom CDR fields not defined in config operation (or set to $null) will be saved as empty string.
++		If set to 1, custom CDR fields not defined in config operation (or set to $null) will be saved as NULL.
++		</para>
++		<para>
++		Default value is 0.
++		</para>
++		</para>
++		<example>
++		<title>cdr_extra_nullable example</title>
++		<programlisting format="linespecific">
++...
++modparam("acc", "cdr_extra_nullable", 1)
++...
++</programlisting>
++		</example>
++	</section>
+ 	<section id="acc.p.cdr_start_id">
+ 		<title><varname>cdr_start_id</varname> (string)</title>
+ 		<para>

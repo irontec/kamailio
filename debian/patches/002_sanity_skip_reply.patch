@@ -1,0 +1,17 @@
+diff --git a/src/modules/sanity/sanity.c b/src/modules/sanity/sanity.c
+index 0ab57928b..ce74d31c2 100644
+--- a/src/modules/sanity/sanity.c
++++ b/src/modules/sanity/sanity.c
+@@ -263,12 +263,6 @@ int check_required_headers(struct sip_msg* _msg) {
+ #endif
+ 
+ 	if (!check_transaction_quadruple(_msg)) {
+-		if (_msg->REQ_METHOD != METHOD_ACK) {
+-			if (sanity_reply(_msg, 400, "Missing Required Header in Request")
+-					< 0) {
+-				LM_WARN("failed to send 400 via sl reply\n");
+-			}
+-		}
+ 		LM_DBG("check_required_headers failed\n");
+ 		return SANITY_CHECK_FAILED;
+ 	}

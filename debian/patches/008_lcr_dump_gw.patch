@@ -1,0 +1,24 @@
+diff --git a/src/modules/lcr/lcr_rpc.c b/src/modules/lcr/lcr_rpc.c
+index baf657ad0c..29008cc5cc 100644
+--- a/src/modules/lcr/lcr_rpc.c
++++ b/src/modules/lcr/lcr_rpc.c
+@@ -58,11 +58,19 @@ static void dump_gws(rpc_t *rpc, void *c)
+ 	char buf[INT2STR_MAX_LEN], *start;
+ 	int len;
+ 
++	unsigned int gw_id;
++	if(rpc->scan(c, "d", &gw_id) < 1) {
++		rpc->fault(c, 400, "gw_id parameter required (0 for all)");
++		return;
++	}
++
+ 	for(j = 1; j <= lcr_count_param; j++) {
+ 
+ 		gws = gw_pt[j];
+ 
+ 		for(i = 1; i <= gws[0].ip_addr.u.addr32[0]; i++) {
++			if(gw_id > 0 && gws[i].gw_id != gw_id)
++				continue;
+ 			if(rpc->add(c, "{", &st) < 0)
+ 				return;
+ 			rpc->struct_add(st, "d", "lcr_id", j);

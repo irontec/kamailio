@@ -1,0 +1,151 @@
+diff --git a/src/modules/ndb_redis/README b/src/modules/ndb_redis/README
+index c51fe48c3b..4bc1a4f86e 100644
+--- a/src/modules/ndb_redis/README
++++ b/src/modules/ndb_redis/README
+@@ -161,6 +161,15 @@ password")
+ 
+ # Unix domain socket
+ modparam("ndb_redis", "server", "name=srvY;unix=/tmp/redis.sock;db=3")
++
++# sentinel (for a redis slave)
++modparam("ndb_redis", "server", "name=srvZ;sentinel_group=group_name;sentinel_ma
++ster=0;sentinel=1.2.3.4:26379;sentinel=1.2.3.5:26379")
++
++# sentinel (for a redis master)
++modparam("ndb_redis", "server", "name=srvZ;sentinel_group=group_name;sentinel_ma
++ster=1;sentinel=1.2.3.4:26379;sentinel=1.2.3.5:26379")
++
+ ...
+ 
+ 3.2. init_without_redis (integer)
+diff --git a/src/modules/ndb_redis/doc/ndb_redis_admin.xml b/src/modules/ndb_redis/doc/ndb_redis_admin.xml
+index 761e2d6625..ef1c587ce3 100644
+--- a/src/modules/ndb_redis/doc/ndb_redis_admin.xml
++++ b/src/modules/ndb_redis/doc/ndb_redis_admin.xml
+@@ -89,6 +89,13 @@ modparam("ndb_redis", "server", "name=srvX;addr=127.0.0.2;port=6379;db=4;pass=my
+ 
+ # Unix domain socket
+ modparam("ndb_redis", "server", "name=srvY;unix=/tmp/redis.sock;db=3")
++
++# sentinel (for a redis slave)
++modparam("ndb_redis", "server", "name=srvZ;sentinel_group=group_name;sentinel_master=0;sentinel=1.2.3.4:26379;sentinel=1.2.3.5:26379")
++
++# sentinel (for a redis master)
++modparam("ndb_redis", "server", "name=srvZ;sentinel_group=group_name;sentinel_master=1;sentinel=1.2.3.4:26379;sentinel=1.2.3.5:26379")
++
+ ...
+ </programlisting>
+ 		</example>
+diff --git a/src/modules/ndb_redis/redis_client.c b/src/modules/ndb_redis/redis_client.c
+index 1f20fdffa6..a8398eee2f 100644
+--- a/src/modules/ndb_redis/redis_client.c
++++ b/src/modules/ndb_redis/redis_client.c
+@@ -67,9 +67,9 @@ int redis_append_formatted_command(redisContext *c, const char *cmd, size_t len)
+  */
+ int redisc_init(void)
+ {
+-	char addr[256], pass[256], unix_sock_path[256];
++	char addr[256], pass[256], unix_sock_path[256], sentinel_group[256];
+ 
+-	unsigned int port, db, sock = 0, haspass = 0;
++	unsigned int port, db, sock = 0, haspass = 0, sentinel_master = 1;
+ 	redisc_server_t *rsrv=NULL;
+ 	param_t *pit = NULL;
+ 	struct timeval tv_conn;
+@@ -89,6 +89,9 @@ int redisc_init(void)
+ 
+ 	for(rsrv=_redisc_srv_list; rsrv; rsrv=rsrv->next)
+ 	{
++		char sentinels[MAXIMUM_SENTINELS][256];
++		uint8_t sentinels_count = 0;
++		
+ 		port = 6379;
+ 		db = 0;
+ 		haspass = 0;
+@@ -114,6 +117,74 @@ int redisc_init(void)
+ 			} else if(pit->name.len==4 && strncmp(pit->name.s, "pass", 4)==0) {
+ 				snprintf(pass, sizeof(pass)-1, "%.*s", pit->body.len, pit->body.s);
+ 				haspass = 1;
++			} else if(pit->name.len==14 && strncmp(pit->name.s, "sentinel_group", 14)==0) {
++				snprintf(sentinel_group, sizeof(sentinel_group)-1, "%.*s", pit->body.len, pit->body.s);
++			} else if(pit->name.len==15 && strncmp(pit->name.s, "sentinel_master", 15)==0) {
++				if(str2int(&pit->body, &sentinel_master) < 0)
++					sentinel_master = 1;
++			} else if(pit->name.len==8 && strncmp(pit->name.s, "sentinel", 8)==0) {
++				if( sentinels_count < MAXIMUM_SENTINELS ){
++					snprintf(sentinels[sentinels_count], sizeof(sentinels[sentinels_count])-1, "%.*s", pit->body.len, pit->body.s);
++					sentinels_count++;
++				}
++				else {
++					LM_ERR("too many sentinels, maximum %d supported.\n", MAXIMUM_SENTINELS);
++					return -1;
++				}
++			}
++		}
++		
++		// if sentinels are provided, we need to connect to them and retrieve the redis server
++		// address / port
++		if(sentinels_count > 0) {
++			for(int i= 0; i< sentinels_count; i++) {
++				char *sentinelAddr = sentinels[i];
++				char *pos;
++				redisContext *redis;
++				redisReply *res, *res2;
++				
++				port = 6379;
++				if( (pos = strchr(sentinelAddr, ':')) != NULL ) {
++					port = atoi(pos+1);
++					pos[i] = '\0';
++				}
++				
++				redis = redisConnectWithTimeout(sentinelAddr, port, tv_conn);
++				if( redis ) {
++					if(sentinel_master != 0) {
++						res = redisCommand(redis, "SENTINEL get-master-addr-by-name %s", sentinel_group);
++						if( res && (res->type == REDIS_REPLY_ARRAY) && (res->elements == 2) ) {
++							strncpy(addr, res->element[0]->str, res->element[0]->len + 1);
++							port = atoi(res->element[1]->str);
++							
++							
++							printf("sentinel replied: %s:%d\n", addr, port);
++						}
++					}
++					else {
++						res = redisCommand(redis, "SENTINEL slaves %s", sentinel_group);
++						if( res && (res->type == REDIS_REPLY_ARRAY) ) {
++							
++							for(int row = 0; row< res->elements; row++){
++								res2 = res->element[row];
++								
++								for(int i= 0; i< res2->elements; i+= 2) {
++									if( strncmp(res2->element[i]->str, "ip", 2) == 0 ) {
++										strncpy(addr, res2->element[i+1]->str, res2->element[i+1]->len);
++										addr[res2->element[i+1]->len] = '\0';
++									}
++									else if( strncmp(res2->element[i]->str, "port", 4) == 0) {
++										port = atoi(res2->element[i+1]->str);
++										break;
++									}
++								}
++								
++							}
++							
++							printf("slave for %s: %s:%d\n", sentinel_group, addr, port);
++						}
++					}
++				}
+ 			}
+ 		}
+ 
+diff --git a/src/modules/ndb_redis/redis_client.h b/src/modules/ndb_redis/redis_client.h
+index 50431cbc40..2ddab38462 100644
+--- a/src/modules/ndb_redis/redis_client.h
++++ b/src/modules/ndb_redis/redis_client.h
+@@ -36,6 +36,7 @@
+ 
+ #define MAXIMUM_PIPELINED_COMMANDS 1000
+ #define MAXIMUM_NESTED_KEYS 10
++#define MAXIMUM_SENTINELS 5
+ #define LM_DBG_redis_reply(rpl) print_redis_reply(L_DBG,(rpl),0)
+ 
+ int redisc_init(void);

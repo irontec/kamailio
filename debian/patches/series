@@ -1,0 +1,12 @@
+001_cdr_extra_nullable.patch
+002_sanity_skip_reply.patch
+003_lcr_rule_id_avp.patch
+004_redis_sentinel.patch
+005_increase_kamcmd_maxsize.patch
+006_redis_sentinel_reconnect.patch
+007_skip_cdr.patch
+008_lcr_dump_gw.patch
+009_lcr_ping_gw_id.patch
+010_dialog_profile_end.patch
+011_pua_trying_presentity.patch
+012_t_suspend_memleak.patch

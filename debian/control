@@ -1,0 +1,221 @@
+Source: ivozprovider-kamailio
+Section: net
+Priority: optional
+Maintainer: Irontec IvozProvider Team <ivozprovider@irontec.com>
+Build-Depends: bison,
+               quilt,
+               debhelper (>= 9),
+               dh-systemd (>= 1.5),
+               docbook-xml,
+               dpkg-dev (>= 1.16.1.1),
+               flex,
+               libmysqlclient-dev,
+               libcurl4-openssl-dev,
+               libexpat1-dev,
+               libhiredis-dev (>= 0.10.0),
+               libpcre3-dev,
+               libjansson-dev,
+               libjson-c-dev,
+               libev-dev,
+               libevent-dev,
+               libperl-dev,
+               libxml2-dev,
+               libunistring-dev,
+               libssl-dev,
+               openssl,
+               uuid-dev,
+               pkg-config,
+               zlib1g-dev,
+               libmaxminddb-dev
+Standards-Version: 3.9.5
+Homepage: http://www.irontec.com
+
+Package: ivozprovider-kamailio
+Architecture: linux-any
+Multi-Arch: foreign
+Replaces: kamailio
+Conflicts: kamailio
+Depends: adduser,
+         python,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Suggests: ivozprovider-kamailio-mysql-modules,
+          ivozprovider-kamailio-tls-modules,
+          ivozprovider-kamailio-xml-modules,
+          ivozprovider-kamailio-redis-modules,
+          ivozprovider-kamailio-geoip2-modules
+Description: IVOZ Provider - Kamailio 5.1 - very fast and configurable SIP proxy
+ kamailio is a very fast and flexible SIP (RFC3261)
+ proxy server. Written entirely in C, kamailio can handle thousands calls
+ per second even on low-budget hardware.
+ .
+ C Shell-like scripting language provides full control over the server's
+ behaviour. Its modular architecture allows only required functionality to be
+ loaded.
+ .
+ Among others, the following modules are available: digest authentication, CPL
+ scripts, instant messaging, MySQL support, presence agent, RADIUS
+ authentication, record routing, SMS gateway, Jabber/XMPP gateway, transaction
+ module, registrar and user location, XML-RPC interface.
+ .
+ This package contains the main kamailio binary along with the principal modules
+ and support binaries.
+
+Package: ivozprovider-kamailio-json-modules
+Architecture: linux-any
+Multi-Arch: same
+Replaces: kamailio-json-modules
+Conflicts: kamailio-json-modules
+Depends: ivozprovider-kamailio (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: IVOZ Provider - Kamailio 5.1 - Json parser and jsonrpc modules for kamailio
+ kamailio is a very fast and flexible SIP (RFC3261)
+ proxy server. Written entirely in C, kamailio can handle thousands calls
+ per second even on low-budget hardware.
+ .
+ This package provides json parser for kamailio's configuration file
+ and the JSON-RPC client over netstrings.
+
+Package: ivozprovider-kamailio-mysql-modules
+Architecture: linux-any
+Multi-Arch: same
+Replaces: kamailio-mysql-modules
+Conflicts: kamailio-mysql-modules
+Depends: ivozprovider-kamailio (= ${binary:Version}),
+         mysql-client | virtual-mysql-client,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: IVOZ Provider - Kamailio 5.1 - MySQL database connectivity module for kamailio
+ kamailio is a very fast and flexible SIP (RFC3261)
+ proxy server. Written entirely in C, kamailio can handle thousands calls
+ per second even on low-budget hardware.
+ .
+ This package provides the MySQL database driver for kamailio.
+
+Package: ivozprovider-kamailio-xml-modules
+Architecture: linux-any
+Multi-Arch: same
+Depends: ivozprovider-kamailio (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Replaces: kamailio-xml-module, kamailio-xmlrpc-module
+Conflicts: kamailio-xml-module, kamailio-xmlrpc-module
+Provides: kamailio-xmlrpc-modules
+Description: IVOZ Provider - Kamailio 5.1 - XML based extensions for kamailio's Management Interface
+ kamailio is a very fast and flexible SIP (RFC3261)
+ proxy server. Written entirely in C, kamailio can handle thousands calls
+ per second even on low-budget hardware.
+ .
+ This package provides:
+ - the XMLRPC transport implementations for kamailio's
+ Management and Control Interface.
+ - xmlops module for XPath operations in configuration file
+
+Package: ivozprovider-kamailio-tls-modules
+Architecture: linux-any
+Multi-Arch: same
+Replaces: kamailio-tls-modules
+Conflicts: kamailio-tls-modules
+Depends: ivozprovider-kamailio (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: IVOZ Provider - Kamailio 5.1 - contains the TLS kamailio transport module
+ This has been split out of the main kamailio package, so that kamailio will
+ not depend on openssl. This module will enable you to use the TLS transport.
+
+Package: ivozprovider-kamailio-websocket-modules
+Architecture: linux-any
+Multi-Arch: same
+Replaces: kamailio-websocket-modules
+Conflicts: kamailio-websocket-modules
+Depends: ivozprovider-kamailio (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: IVOZ Provider - Kamailio 5.1 - Websocket module for kamailio
+ kamailio is a very fast and flexible SIP (RFC3261)
+ proxy server. Written entirely in C, kamailio can handle thousands calls
+ per second even on low-budget hardware.
+ .
+ This package contains the module implementing WebSocket transport layer.
+
+Package: ivozprovider-kamailio-presence-modules
+Architecture: linux-any
+Multi-Arch: same
+Pre-Depends: ${misc:Pre-Depends}
+Depends: ivozprovider-kamailio (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: IVOZ Provider - Kamailio 5.1 - SIP presence modules for Kamailio
+ Kamailio is a very fast and flexible SIP (RFC3261)
+ server. Written entirely in C, Kamailio can handle thousands calls
+ per second even on low-budget hardware.
+ .
+ This package provides several Kamailio modules for implementing a presence
+ server and presence user agent for rich presence, registrar-based presence,
+ external triggered presence with SIMPLE and XCAP support, as well as a
+ set of other SIP event packages..
+
+Package: ivozprovider-kamailio-extra-modules
+Architecture: linux-any
+Multi-Arch: same
+Pre-Depends:
+ ${misc:Pre-Depends},
+Depends:
+ ivozprovider-kamailio (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: extra modules for Kamailio
+ Kamailio is a very fast and flexible SIP (RFC3261)
+ proxy server. Written entirely in C, Kamailio can handle thousands calls
+ per second even on low-budget hardware.
+ .
+ This package provides: evapi, jansson
+
+Package: ivozprovider-kamailio-utils-modules
+Architecture: linux-any
+Multi-Arch: same
+Pre-Depends:
+ ${misc:Pre-Depends},
+Depends:
+ ivozprovider-kamailio (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: utils modules for Kamailio
+ Kamailio is a very fast and flexible SIP (RFC3261)
+ proxy server. Written entirely in C, Kamailio can handle thousands calls
+ per second even on low-budget hardware.
+ .
+ This package provides: http_client
+
+Package: ivozprovider-kamailio-redis-modules
+Architecture: linux-any
+Multi-Arch: same
+Replaces: kamailio-mysql-modules
+Conflicts: kamailio-mysql-modules
+Depends: ivozprovider-kamailio (= ${binary:Version}),
+         mysql-client | virtual-mysql-client,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: IVOZ Provider - Kamailio 5.1 - Redis database connectivity
+ kamailio is a very fast and flexible SIP (RFC3261)
+ proxy server. Written entirely in C, kamailio can handle thousands calls
+ per second even on low-budget hardware.
+ .
+ This package provides the Redis NOSQL database driver for Kamailio
+
+
+Package: ivozprovider-kamailio-geoip2-modules
+Architecture: linux-any
+Multi-Arch: same
+Replaces: kamailio-geoip2-modules
+Conflicts: kamailio-geoip2-modules
+Depends: ivozprovider-kamailio (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: IVOZ Provider - Kamailio 5.1 - GeoIP module
+ kamailio is a very fast and flexible SIP (RFC3261)
+ proxy server. Written entirely in C, kamailio can handle thousands calls
+ per second even on low-budget hardware.
+ .
+ This package provides the GeoIP module for Kamailio

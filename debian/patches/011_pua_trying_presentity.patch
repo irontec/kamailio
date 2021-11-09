@@ -1,0 +1,30 @@
+diff --git a/src/modules/pua_dialoginfo/pua_dialoginfo.c b/src/modules/pua_dialoginfo/pua_dialoginfo.c
+index f8d92b67fe..b412de9f55 100644
+--- a/src/modules/pua_dialoginfo/pua_dialoginfo.c
++++ b/src/modules/pua_dialoginfo/pua_dialoginfo.c
+@@ -63,6 +63,7 @@ MODULE_VERSION
+ #define DEF_CALLEE_TRYING 0
+ #define DEF_DISABLE_CALLER_PUBLISH_FLAG -1
+ #define DEF_DISABLE_CALLEE_PUBLISH_FLAG -1
++#define DEF_TRYING_STATE_LIFETIME 15
+ 
+ /* define PUA_DIALOGINFO_DEBUG to activate more verbose
+  * logging and dialog info callback debugging
+@@ -644,7 +645,7 @@ __dialog_created(struct dlg_cell *dlg, int type, struct dlg_cb_params *_params)
+ 		dialog_publish_multi("Trying", dlginfo->pubruris_caller,
+ 				&(dlg->from_uri),
+ 				(include_req_uri)?&(dlg->req_uri):&(dlg->to_uri),
+-				&(dlg->callid), 1, dlginfo->lifetime,
++				&(dlg->callid), 1, DEF_TRYING_STATE_LIFETIME,
+ 				0, 0, 0, 0, (send_publish_flag==-1)?1:0);
+ 	}
+ 
+@@ -654,7 +655,7 @@ __dialog_created(struct dlg_cell *dlg, int type, struct dlg_cb_params *_params)
+ 		dialog_publish_multi("Trying", dlginfo->pubruris_callee,
+ 				(include_req_uri)?&(dlg->req_uri):&(dlg->to_uri),
+ 				&(dlg->from_uri),
+-				&(dlg->callid), 0, dlginfo->lifetime,
++				&(dlg->callid), 0, DEF_TRYING_STATE_LIFETIME,
+ 				0, 0, 0, 0, (send_publish_flag==-1)?1:0);
+ 	}
+ }
