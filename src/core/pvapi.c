@@ -40,8 +40,8 @@
 #include "pvapi.h"
 #include "pvar.h"
 
-#define PV_TABLE_SIZE	64  /*!< pseudo-variables table size */
-#define TR_TABLE_SIZE	32  /*!< transformations table size */
+#define PV_TABLE_SIZE	512  /*!< pseudo-variables table size */
+#define TR_TABLE_SIZE	256  /*!< transformations table size */
 
 
 void tr_destroy(trans_t *t);
@@ -1402,18 +1402,22 @@ int pv_set_spec_value(struct sip_msg* msg, pv_spec_p sp, int op,
 /**
  *
  */
-int pv_printf(struct sip_msg* msg, pv_elem_p list, char *buf, int *len)
+int pv_printf_mode(sip_msg_t* msg, pv_elem_t *list, int mode, char *buf, int *len)
 {
 	int n;
 	pv_value_t tok;
 	pv_elem_p it;
 	char *cur;
 
-	if(msg==NULL || list==NULL || buf==NULL || len==NULL)
+	if(msg==NULL || list==NULL || buf==NULL || len==NULL) {
+		LM_DBG("invalid parameters\n");
 		return -1;
+	}
 
-	if(*len <= 0)
+	if(*len <= 0) {
+		LM_DBG("invalid value for output buffer size\n");
 		return -1;
+	}
 
 	*buf = '\0';
 	cur = buf;
@@ -1430,7 +1434,10 @@ int pv_printf(struct sip_msg* msg, pv_elem_p list, char *buf, int *len)
 				n += it->text.len;
 				cur += it->text.len;
 			} else {
-				LM_ERR("no more space for text [%d]\n", it->text.len);
+				if(likely(mode)) {
+					LM_ERR("no more space for text value - printed:%d token:%d buffer:%d\n",
+						n, it->text.len, *len);
+				}
 				goto overflow;
 			}
 		}
@@ -1449,7 +1456,10 @@ int pv_printf(struct sip_msg* msg, pv_elem_p list, char *buf, int *len)
 					cur += tok.rs.len;
 				}
 			} else {
-				LM_ERR("no more space for spec value\n");
+				if(likely(mode)) {
+					LM_ERR("no more space for spec value - printed:%d token:%d buffer:%d\n",
+						n, tok.rs.len, *len);
+				}
 				goto overflow;
 			}
 		}
@@ -1458,8 +1468,10 @@ int pv_printf(struct sip_msg* msg, pv_elem_p list, char *buf, int *len)
 	goto done;
 
 overflow:
-	LM_ERR("buffer overflow -- increase the buffer size...\n");
-	return -1;
+	if(likely(mode)) {
+		LM_ERR("buffer overflow -- increase the buffer size...\n");
+	}
+	return -2;
 
 done:
 #ifdef EXTRA_DEBUG
@@ -1468,6 +1480,47 @@ done:
 	*cur = '\0';
 	*len = n;
 	return 0;
+}
+
+/**
+ *
+ */
+int pv_printf(sip_msg_t* msg, pv_elem_t *list, char *buf, int *len)
+{
+	return pv_printf_mode(msg, list, 1, buf, len);
+}
+
+/**
+ *
+ */
+int pv_printf_size(sip_msg_t* msg, pv_elem_t *list)
+{
+	int n;
+	pv_value_t tok;
+	pv_elem_t *it;
+
+	if(msg==NULL || list==NULL) {
+		return -1;
+	}
+
+	n = 0;
+	for (it=list; it; it=it->next) {
+		/* count the static text */
+		if(it->text.s && it->text.len>0) {
+			n += it->text.len;
+		}
+		/* count the value of the specifier */
+		if(it->spec!=NULL && it->spec->type!=PVT_NONE
+				&& pv_get_spec_value(msg, it->spec, &tok)==0)
+		{
+			if(tok.flags&PV_VAL_NULL) {
+				tok.rs = pv_str_null;
+			}
+			n += tok.rs.len;
+		}
+	}
+
+	return n;
 }
 
 /**
@@ -2025,7 +2078,7 @@ static char **_pv_print_buffer = NULL;
 static int _pv_print_buffer_size  = PV_DEFAULT_PRINT_BUFFER_SIZE;
 static int _pv_print_buffer_size_active  = 0;
 /* 6 mod params + 4 direct usage from mods */
-#define PV_DEFAULT_PRINT_BUFFER_SLOTS 10
+#define PV_DEFAULT_PRINT_BUFFER_SLOTS 40
 static int _pv_print_buffer_slots = PV_DEFAULT_PRINT_BUFFER_SLOTS;
 static int _pv_print_buffer_slots_active = 0;
 static int _pv_print_buffer_index = 0;

@@ -446,7 +446,7 @@ VERBOSE_STARTUP		"verbose_startup"
 SERVER_ID     "server_id"
 
 MAX_RECURSIVE_LEVEL		"max_recursive_level"
-MAX_BRANCHES_PARAM		"max_branches"|"max_branches"
+MAX_BRANCHES_PARAM		"max_branches"
 
 LATENCY_CFG_LOG			latency_cfg_log
 LATENCY_LOG				latency_log
@@ -1896,14 +1896,24 @@ static void pp_ifdef()
 
 static void pp_else()
 {
+	if(pp_sptr==0) {
+		LM_WARN("invalid position for preprocessor directive 'else'"
+				" - at %s line %d\n", (finame)?finame:"cfg", line);
+		return;
+	}
 	pp_ifdef_stack[pp_sptr-1] ^= 1;
 	pp_update_state();
 }
 
 static void pp_endif()
 {
-	pp_sptr--;
 	pp_ifdef_level_update(-1);
+	if(pp_sptr==0) {
+		LM_WARN("invalid position for preprocessor directive 'else'"
+				" - at %s line %d\n", (finame)?finame:"cfg", line);
+		return;
+	}
+	pp_sptr--;
 	pp_update_state();
 }
 

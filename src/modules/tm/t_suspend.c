@@ -166,10 +166,12 @@ int t_suspend(struct sip_msg *msg,
 int t_continue_helper(unsigned int hash_index, unsigned int label,
 		struct action *rtact, str *cbname, str *cbparam)
 {
-	struct cell	*t;
+	tm_cell_t *t;
+	tm_cell_t *backup_T = T_UNDEFINED;
+	int backup_T_branch = T_BR_UNDEFINED;
 	sip_msg_t *faked_req;
-	sip_msg_t *brpl;
-	void *erpl;
+	sip_msg_t *brpl = NULL;
+	void *erpl = NULL;
 	int faked_req_len = 0;
 	struct cancel_info cancel_data;
 	int	branch;
@@ -187,13 +189,18 @@ int t_continue_helper(unsigned int hash_index, unsigned int label,
 
 	cfg_update();
 
-	if (t_lookup_ident(&t, hash_index, label) < 0) {
-		LM_ERR("transaction not found\n");
+	backup_T = get_t();
+	backup_T_branch = get_t_branch();
+
+	if (t_lookup_ident_filter(&t, hash_index, label, 1) < 0) {
+		set_t(backup_T, backup_T_branch);
+		LM_ERR("active transaction not found\n");
 		return -1;
 	}
 
 	if (!(t->flags & T_ASYNC_SUSPENDED)) {
 		LM_WARN("transaction is not suspended [%u:%u]\n", hash_index, label);
+		set_t(backup_T, backup_T_branch);
 		return -2;
 	}
 
@@ -203,7 +210,7 @@ int t_continue_helper(unsigned int hash_index, unsigned int label,
 		 * needless to continue */
 		UNREF(t); /* t_unref would kill the transaction */
 		/* reset T as we have no working T anymore */
-		set_t(T_UNDEFINED, T_BR_UNDEFINED);
+		set_t(backup_T, backup_T_branch);
 		return 1;
 	}
 
@@ -248,6 +255,7 @@ int t_continue_helper(unsigned int hash_index, unsigned int label,
 				t->flags &= ~T_ASYNC_CONTINUE;
 				UNLOCK_ASYNC_CONTINUE(t);
 				UNREF(t); /* t_unref would kill the transaction */
+				set_t(backup_T, backup_T_branch);
 				return 1;
 			}
 
@@ -387,7 +395,6 @@ int t_continue_helper(unsigned int hash_index, unsigned int label,
 						if(keng->froute(t->uac[branch].reply, TM_ONREPLY_ROUTE,
 								cbname, &evname)<0) {
 							LM_ERR("error running event route kemi callback\n");
-							return -1;
 						}
 					} else {
 						LM_DBG("event callback (%.*s) set, but no cfg engine\n",
@@ -497,49 +504,51 @@ done:
 	} else {
 		/* response handling */
 		tm_ctx_set_branch_index(T_BR_UNDEFINED);
-		/* unref the transaction */
-		t_unref(brpl);
-		LM_DBG("Freeing earlier cloned reply\n");
+		if(brpl) {
+			/* unref the transaction */
+			t_unref(brpl);
+			LM_DBG("Freeing earlier cloned reply\n");
 
-		/* free lumps that were added during reply processing */
-		del_nonshm_lump( &(brpl->add_rm) );
-		del_nonshm_lump( &(brpl->body_lumps) );
-		del_nonshm_lump_rpl( &(brpl->reply_lump) );
+			/* free lumps that were added during reply processing */
+			del_nonshm_lump( &(brpl->add_rm) );
+			del_nonshm_lump( &(brpl->body_lumps) );
+			del_nonshm_lump_rpl( &(brpl->reply_lump) );
 
-		/* free header's parsed structures that were added */
-		for( hdr=brpl->headers ; hdr ; hdr=hdr->next ) {
-			if ( hdr->parsed && hdr_allocs_parse(hdr) &&
-					(hdr->parsed<(void*)brpl ||
-					hdr->parsed>=(void*)erpl)) {
-				clean_hdr_field(hdr);
-				hdr->parsed = 0;
-			}
-		}
-
-		/* now go through hdr fields themselves
-		 * and remove the pkg allocated space */
-		hdr = brpl->headers;
-		while (hdr) {
-			if ( hdr && ((void*)hdr<(void*)brpl ||
-					(void*)hdr>=(void*)erpl)) {
-				/* this header needs to be freed and removed form the list */
-				if (!prev) {
-					brpl->headers = hdr->next;
-				} else {
-					prev->next = hdr->next;
+			/* free header's parsed structures that were added */
+			for( hdr=brpl->headers ; hdr ; hdr=hdr->next ) {
+				if (hdr->parsed && hdr_allocs_parse(hdr) &&
+						(hdr->parsed<(void*)brpl ||
+						(erpl && hdr->parsed>=(void*)erpl))) {
+					clean_hdr_field(hdr);
+					hdr->parsed = 0;
 				}
-				tmp = hdr;
-				hdr = hdr->next;
-				pkg_free(tmp);
-			} else {
-				prev = hdr;
-				hdr = hdr->next;
 			}
+
+			/* now go through hdr fields themselves
+			 * and remove the pkg allocated space */
+			hdr = brpl->headers;
+			while (hdr) {
+				if ( hdr && ((void*)hdr<(void*)brpl ||
+						(void*)hdr>=(void*)erpl)) {
+					/* this header needs to be freed and removed form the list */
+					if (!prev) {
+						brpl->headers = hdr->next;
+					} else {
+						prev->next = hdr->next;
+					}
+					tmp = hdr;
+					hdr = hdr->next;
+					pkg_free(tmp);
+				} else {
+					prev = hdr;
+					hdr = hdr->next;
+				}
+			}
+			sip_msg_free(brpl);
 		}
-		sip_msg_free(brpl);
 	}
 
-
+	set_t(backup_T, backup_T_branch);
 	return 0;
 
 kill_trans:
@@ -566,6 +575,7 @@ kill_trans:
 		/* response handling */
 		t_unref(t->uac[branch].reply);
 	}
+	set_t(backup_T, backup_T_branch);
 	return ret;
 }
 

@@ -168,12 +168,17 @@ static int check_via_address(struct ip_addr* ip, str *name,
 						(name->s[name->len-1]==']')&&
 						(strncasecmp(name->s+1, s, len)==0))
 				)
-		   )
+		   ) {
 			return 0;
-		else
-
-			if (strncmp(name->s, s, name->len)==0)
+		}
+		else {
+			if (unlikely(name->s==NULL)) {
+				LM_CRIT("invalid Via host name\n");
+				return -1;
+			}
+			if (len==name->len&&(strncmp(name->s, s, name->len)==0))
 				return 0;
+		}
 	}else{
 		LM_CRIT("could not convert ip address\n");
 		return -1;
@@ -639,7 +644,10 @@ static inline int lumps_len(struct sip_msg* msg, struct lump* lumps,
 			case SUBST_RCV_ALL: \
 				if (msg->rcv.bind_address){ \
 					new_len+=recv_address_str->len; \
-					if (msg->rcv.bind_address->address.af!=AF_INET) \
+					if ((msg->rcv.bind_address->address.af==AF_INET6)\
+							&& (recv_address_str->s[0]!='[')\
+							&& (memchr(recv_address_str->s, ':',\
+								recv_address_str->len)!=NULL))\
 						new_len+=2; \
 					if (recv_port_no!=SIP_PORT){ \
 						/* add :port_no */ \
@@ -725,7 +733,9 @@ static inline int lumps_len(struct sip_msg* msg, struct lump* lumps,
 				if (send_sock){ \
 					new_len+=send_address_str->len; \
 					if ((send_sock->address.af==AF_INET6) && \
-							(send_address_str->s[0]!='[')) \
+							(send_address_str->s[0]!='[')\
+							&& (memchr(send_address_str->s, ':',\
+								send_address_str->len)!=NULL)) \
 						new_len+=2; \
 					if ((send_sock->port_no!=SIP_PORT) || \
 							(send_port_str!=&(send_sock->port_no_str))){ \
@@ -993,13 +1003,19 @@ void process_lumps( struct sip_msg* msg,
 		case SUBST_RCV_ALL: \
 			if (msg->rcv.bind_address){  \
 				/* address */ \
-				if (msg->rcv.bind_address->address.af!=AF_INET){\
+				if ((msg->rcv.bind_address->address.af==AF_INET6)\
+						&& (recv_address_str->s[0]!='[')\
+						&& (memchr(recv_address_str->s, ':',\
+								recv_address_str->len)!=NULL)){\
 					new_buf[offset]='['; offset++; \
 				}\
 				memcpy(new_buf+offset, recv_address_str->s, \
 						recv_address_str->len); \
 				offset+=recv_address_str->len; \
-				if (msg->rcv.bind_address->address.af!=AF_INET){\
+				if ((msg->rcv.bind_address->address.af==AF_INET6)\
+						&& (recv_address_str->s[0]!='[')\
+						&& (memchr(recv_address_str->s, ':',\
+								recv_address_str->len)!=NULL)){\
 					new_buf[offset]=']'; offset++; \
 				}\
 				/* :port */ \
@@ -1085,15 +1101,19 @@ void process_lumps( struct sip_msg* msg,
 		case SUBST_SND_ALL: \
 			if (send_sock){  \
 				/* address */ \
-				if ((send_sock->address.af!=AF_INET) && \
-						(send_address_str->s[0]!='[')){\
+				if ((send_sock->address.af==AF_INET6)\
+						&& (send_address_str->s[0]!='[')\
+						&& (memchr(send_address_str->s, ':',\
+								send_address_str->len)!=NULL)){\
 					new_buf[offset]='['; offset++; \
 				}\
 				memcpy(new_buf+offset, send_address_str->s, \
 						send_address_str->len); \
 				offset+=send_address_str->len; \
-				if ((send_sock->address.af!=AF_INET) && \
-						(send_address_str->s[0]!='[')){\
+				if ((send_sock->address.af==AF_INET6)\
+						&& (send_address_str->s[0]!='[')\
+						&& (memchr(send_address_str->s, ':',\
+								send_address_str->len)!=NULL)){\
 					new_buf[offset]=']'; offset++; \
 				}\
 				/* :port */ \
@@ -1688,16 +1708,14 @@ int get_boundary(struct sip_msg* msg, str* boundary)
 
 	params.s = memchr(msg->content_type->body.s, ';',
 		msg->content_type->body.len);
-	if (params.s == NULL)
-	{
-		LM_INFO("Content-Type hdr has no params <%.*s>\n",
+	if (params.s == NULL) {
+		LM_INFO("Content-Type hdr has no boundary params <%.*s>\n",
 				msg->content_type->body.len, msg->content_type->body.s);
-		return -1;
+		return -2;
 	}
 	params.len = msg->content_type->body.len -
 		(params.s - msg->content_type->body.s);
-	if (parse_params(&params, CLASS_ANY, &hooks, &list) < 0)
-	{
+	if (parse_params(&params, CLASS_ANY, &hooks, &list) < 0) {
 		LM_ERR("while parsing Content-Type params\n");
 		return -1;
 	}
@@ -1705,11 +1723,9 @@ int get_boundary(struct sip_msg* msg, str* boundary)
 	boundary->len = 0;
 	for (p = list; p; p = p->next) {
 		if ((p->name.len == 8)
-			&& (strncasecmp(p->name.s, "boundary", 8) == 0))
-		{
+			&& (strncasecmp(p->name.s, "boundary", 8) == 0)) {
 			boundary->s = pkg_malloc(p->body.len + 2);
-			if (boundary->s == NULL)
-			{
+			if (boundary->s == NULL) {
 				free_params(list);
 				LM_ERR("no memory for boundary string\n");
 				return -1;
@@ -1742,9 +1758,17 @@ int check_boundaries(struct sip_msg *msg, struct dest_info *send_info)
 	int t, ret, lb_size;
 	char *pb;
 
-	if(!(msg->msg_flags&FL_BODY_MULTIPART)) return 0;
-	else
-	{
+	if(!(msg->msg_flags&FL_BODY_MULTIPART)) {
+		LM_DBG("no multi-part body\n");
+		return 0;
+	} else {
+		if((t = get_boundary(msg, &ob)) != 0) {
+			if(t==-2) {
+				LM_INFO("no boundary - maybe just turning into multipart body\n");
+				return -2;
+			}
+			return -1;
+		}
 		buf.s = build_body(msg, (unsigned int *)&buf.len, &ret, send_info);
 		if(ret) {
 			LM_ERR("Can't get body\n");
@@ -1752,10 +1776,6 @@ int check_boundaries(struct sip_msg *msg, struct dest_info *send_info)
 		}
 		tmp.s = buf.s;
 		t = tmp.len = buf.len;
-		if(get_boundary(msg, &ob)!=0) {
-			if(tmp.s) pkg_free(tmp.s);
-			return -1;
-		}
 		if(str_append(&ob, &bsuffix, &b)!=0) {
 			LM_ERR("Can't append suffix to boundary\n");
 			goto error;
@@ -1815,10 +1835,10 @@ int check_boundaries(struct sip_msg *msg, struct dest_info *send_info)
 			tmp.len = get_line(lb_t->s);
 			if(tmp.len!=b.len || strncmp(b.s, tmp.s, b.len)!=0)
 			{
-				LM_DBG("malformed bondary in the middle\n");
+				LM_DBG("malformed boundary in the middle\n");
 				memcpy(pb, b.s, b.len); body.len = body.len + b.len;
 				pb = pb + b.len;
-				t = lb_t->s.s - (lb_t->s.s + tmp.len);
+				t = lb_t->next->s.s - (lb_t->s.s + tmp.len);
 				memcpy(pb, lb_t->s.s+tmp.len, t); pb = pb + t;
 				/*LM_DBG("new chunk[%d][%.*s]\n", t, t, pb-t);*/
 			}
@@ -1939,6 +1959,7 @@ char * build_req_buf_from_sip_req( struct sip_msg* msg,
 	unsigned int flags;
 	unsigned int udp_mtu;
 	struct dest_info di;
+	int ret;
 
 	via_insert_param=0;
 	uri_len=0;
@@ -1956,9 +1977,10 @@ char * build_req_buf_from_sip_req( struct sip_msg* msg,
 	path_buf.len=0;
 
 	flags=msg->msg_flags|global_req_flags;
-	if(check_boundaries(msg, send_info)<0){
-		LM_WARN("check_boundaries error\n");
+	if((ret = check_boundaries(msg, send_info)) < 0){
+		LM_INFO("check boundaries negative (%d)\n", ret);
 	}
+
 	/* Calculate message body difference and adjust Content-Length */
 	body_delta = lumps_len(msg, msg->body_lumps, send_info);
 	if (adjust_clen(msg, body_delta, send_info->proto) < 0) {
@@ -2367,7 +2389,7 @@ char * build_res_buf_from_sip_req( unsigned int code, str *text ,str *new_tag,
 			case HDR_TO_T:
 				if (new_tag && new_tag->len) {
 					to_tag=get_to(msg)->tag_value;
-					if ( to_tag.len || to_tag.s )
+					if ( to_tag.len && to_tag.s )
 						len+=new_tag->len-to_tag.len;
 					else
 						len+=new_tag->len+TOTAG_TOKEN_LEN/*";tag="*/;
@@ -2495,7 +2517,7 @@ char * build_res_buf_from_sip_req( unsigned int code, str *text ,str *new_tag,
 				break;
 			case HDR_TO_T:
 				if (new_tag && new_tag->len){
-					if (to_tag.s ) { /* replacement */
+					if (to_tag.len && to_tag.s) { /* replacement */
 						/* before to-tag */
 						append_str( p, hdr->name.s, to_tag.s-hdr->name.s);
 						/* to tag replacement */
@@ -2837,7 +2859,7 @@ char* via_builder( unsigned int *len,
 	return line_buf;
 }
 
-/* creates a via header honoring the protocol of the incomming socket
+/* creates a via header honoring the protocol of the incoming socket
  * msg is an optional parameter */
 char* create_via_hf( unsigned int *len,
 	struct sip_msg *msg,
@@ -3091,6 +3113,7 @@ int build_sip_msg_from_buf(struct sip_msg *msg, char *buf, int len,
 
 	memset(msg, 0, sizeof(sip_msg_t));
 	msg->id = id;
+	msg->pid = my_pid();
 	msg->buf = buf;
 	msg->len = len;
 	if (parse_msg(buf, len, msg)!=0) {

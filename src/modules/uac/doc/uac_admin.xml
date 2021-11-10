@@ -54,6 +54,16 @@
 				SIP request. Try to save needed changes in a pseudovariable and
 				apply them once.
 			</para>
+			<para>
+				There is also a limitation regarding the use of the
+				<quote>msg_apply_changes()</quote> function together with the
+				<quote>uac_replace_*</quote> functions for messages that are
+				loose-routed (e.g. Re-INVITE requests). In this case you need
+				to call the <quote>loose_route()</quote> function after the
+				replace and msg_apply_changes. Otherwise Kamailio can create
+				replies with wrong From/To headers (e.g. for the 100 - Trying
+				reply in the Re-INVITE example).
+			</para>
 			</listitem>
 		</itemizedlist>
 	</section>
@@ -894,7 +904,7 @@ if(uac_reg_request_to("$fU", 0))
 failure_route[REMOTE_AUTH] {
 	if ($T_reply_code == 401 or $T_reply_code == 407) {
 		xlog("L_NOTICE", "Remote asked for authentication");
-		uac_auth()
+		uac_auth();
 	}
 }
 ...
@@ -921,9 +931,11 @@ failure_route[REMOTE_AUTH] {
 				<function moreinfo="none">event_route[uac:reply]</function>
 			</title>
 		<para>
-			Event route executed for the final reply to the request set with
-			uac_req_send(). The associated $uac_req(evroute) has to be set to
-			1.
+			Event route executed for the final reply of the branch for the
+			request sent with uac_req_send(). The associated $uac_req(evroute)
+			has to be set to 1. If the request is challenged for authentication
+			with 401/407, then the event_route is executed twice, first for
+			401/407 and second for final reply of the transaction.
 		</para>
 		<example>
 		<title><function>event_route[uac:reply]</function> usage</title>
@@ -987,7 +999,7 @@ event_route[uac:reply] {
 			Return the details of a remote registration record based on
 			a filter. The command has two parameter: attribute and value.
 			The attribute can be: l_uuid, l_username, r_username or auth_username.
-			The value is what should be matcheg against the value of the attribute
+			The value is what should be matched against the value of the attribute
 			in the remote registration record.
 		</para>
 		<para>
@@ -1029,7 +1041,7 @@ event_route[uac:reply] {
 			Enable a remote registration record based on
 			a filter. The command has two parameter: attribute and value.
 			The attribute can be: l_uuid, l_username, r_username or auth_username.
-			The value is what should be matcheg against the value of the attribute
+			The value is what should be matched against the value of the attribute
 			in the remote registration record.
 		</para>
 		<example>
@@ -1050,7 +1062,7 @@ event_route[uac:reply] {
 			Disable a remote registration record based on
 			a filter. The command has two parameter: attribute and value.
 			The attribute can be: l_uuid, l_username, r_username or auth_username.
-			The value is what should be matcheg against the value of the attribute
+			The value is what should be matched against the value of the attribute
 			in the remote registration record.
 		</para>
 		<example>
@@ -1140,7 +1152,7 @@ event_route[uac:reply] {
 		</itemizedlist>
 		<itemizedlist>
 			<listitem><para>
-			<emphasis>realm</emphasis> - remote relam, e.g.,:
+			<emphasis>realm</emphasis> - remote realm, e.g.,:
 			sipprovider.com
 			</para></listitem>
 		</itemizedlist>

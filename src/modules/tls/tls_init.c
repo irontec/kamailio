@@ -773,7 +773,7 @@ int init_tls_h(void)
 		low_mem_threshold2*=1024; /* KB */
 	if ((low_mem_threshold1==0) || (low_mem_threshold2==0))
 	 LM_WARN("tls: openssl bug #1491 (crash/mem leaks on low memory)"
-				" workarround disabled\n");
+				" workaround disabled\n");
 	else
 		LM_WARN("openssl bug #1491 (crash/mem leaks on low memory)"
 				" workaround enabled (on low memory tls operations will fail"
@@ -857,7 +857,7 @@ void destroy_tls_h(void)
 	tls_destroy_cfg();
 	tls_destroy_locks();
 	tls_ct_wq_destroy();
-#if OPENSSL_VERSION_NUMBER >= 0x010100000L
+#if OPENSSL_VERSION_NUMBER >= 0x010100000L && !defined(LIBRESSL_VERSION_NUMBER)
 	/* explicit execution of libssl cleanup to avoid being executed again
 	 * by atexit(), when shm is gone */
 	LM_DBG("executing openssl v1.1+ cleanup\n");

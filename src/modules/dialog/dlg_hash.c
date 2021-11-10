@@ -233,9 +233,9 @@ int dlg_clean_run(ticks_t ti)
 		while (dlg) {
 			tdlg = dlg;
 			dlg = dlg->next;
-			if(tdlg->state==DLG_STATE_UNCONFIRMED && tdlg->init_ts>0
+			if(tdlg->state<=DLG_STATE_EARLY && tdlg->init_ts>0
 					&& tdlg->init_ts<tm-dlg_early_timeout) {
-				/* dialog in early state older than 5min */
+				/* dialog in unconfirmed or early state older than expected */
 				LM_NOTICE("dialog in early state is too old (%p ref %d)\n",
 						tdlg, tdlg->ref);
 				unlink_unsafe_dlg(&d_table->entries[i], tdlg);
@@ -450,15 +450,16 @@ struct dlg_cell* build_new_dlg( str *callid, str *from_uri, str *to_uri,
 	int len;
 	char *p;
 
-	len = sizeof(struct dlg_cell) + callid->len + from_uri->len +
-		to_uri->len + req_uri->len;
+	/* space for dialog  structure and values with 0-ending char */
+	len = sizeof(struct dlg_cell) + callid->len + 1 + from_uri->len + 1
+		+ to_uri->len + 1 + req_uri->len + 1;
 	dlg = (struct dlg_cell*)shm_malloc( len );
 	if (dlg==0) {
 		LM_ERR("no more shm mem (%d)\n",len);
 		return 0;
 	}
 
-	memset( dlg, 0, len);
+	memset(dlg, 0, len);
 	dlg->state = DLG_STATE_UNCONFIRMED;
 	dlg->init_ts = (unsigned int)time(NULL);
 
@@ -469,23 +470,23 @@ struct dlg_cell* build_new_dlg( str *callid, str *from_uri, str *to_uri,
 
 	dlg->callid.s = p;
 	dlg->callid.len = callid->len;
-	memcpy( p, callid->s, callid->len);
-	p += callid->len;
+	memcpy(p, callid->s, callid->len);
+	p += callid->len + 1;
 
 	dlg->from_uri.s = p;
 	dlg->from_uri.len = from_uri->len;
-	memcpy( p, from_uri->s, from_uri->len);
-	p += from_uri->len;
+	memcpy(p, from_uri->s, from_uri->len);
+	p += from_uri->len + 1;
 
 	dlg->to_uri.s = p;
 	dlg->to_uri.len = to_uri->len;
-	memcpy( p, to_uri->s, to_uri->len);
-	p += to_uri->len; 
+	memcpy(p, to_uri->s, to_uri->len);
+	p += to_uri->len + 1;
 
 	dlg->req_uri.s = p;
 	dlg->req_uri.len = req_uri->len;
-	memcpy( p, req_uri->s, req_uri->len);
-	p += req_uri->len;
+	memcpy(p, req_uri->s, req_uri->len);
+	p += req_uri->len + 1;
 
 	if ( p!=(((char*)dlg)+len) ) {
 		LM_CRIT("buffer overflow\n");
@@ -794,6 +795,10 @@ struct dlg_cell* get_dlg( str *callid, str *ftag, str *ttag, unsigned int *dir)
 	struct dlg_cell *dlg;
 	unsigned int he;
 
+	if(d_table==NULL) {
+		LM_ERR("dialog hash table not available\n");
+		return 0;
+	}
 	he = core_hash(callid, 0, d_table->size);
 	dlg = internal_get_dlg(he, callid, ftag, ttag, dir, 0);
 

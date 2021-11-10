@@ -80,8 +80,6 @@ static db1_con_t* dialog_db_handle    = 0; /* database connection handle */
 static db_func_t dialog_dbf;
 
 extern int dlg_enable_stats;
-extern int active_dlgs_cnt;
-extern int early_dlgs_cnt;
 
 
 #define SET_STR_VALUE(_val, _str)\
@@ -376,10 +374,8 @@ static int load_dialog_info_from_db(int dlg_hash_size, int fetch_num_rows)
 			dlg->state 		= VAL_INT(values+8);
 			if (dlg->state==DLG_STATE_CONFIRMED_NA ||
 			dlg->state==DLG_STATE_CONFIRMED) {
-				active_dlgs_cnt++;
 				if_update_stat(dlg_enable_stats, active_dlgs, 1);
 			} else if (dlg->state==DLG_STATE_EARLY) {
-				early_dlgs_cnt++;
 				if_update_stat(dlg_enable_stats, early_dlgs, 1);
 			}
 
@@ -418,7 +414,7 @@ static int load_dialog_info_from_db(int dlg_hash_size, int fetch_num_rows)
 			dlg_set_toroute(dlg, &toroute_name);
 
 			GET_STR_VALUE(xdata, values, 21, 0, 0);
-			if(xdata.s!=NULL && dlg->state!=DLG_STATE_DELETED)
+			if(xdata.len > 0 && xdata.s!=NULL && dlg->state!=DLG_STATE_DELETED)
 			{
 				srjson_InitDoc(&jdoc, NULL);
 				jdoc.buf = xdata;
@@ -426,6 +422,8 @@ static int load_dialog_info_from_db(int dlg_hash_size, int fetch_num_rows)
 				srjson_DestroyDoc(&jdoc);
 			}
 			dlg->iflags = (unsigned int)VAL_INT(values+22);
+			if (dlg->state==DLG_STATE_CONFIRMED)
+				dlg_ka_add(dlg);
 
 			if (!dlg->bind_addr[DLG_CALLER_LEG] || !dlg->bind_addr[DLG_CALLEE_LEG]) {
 				/* non-local socket, probably not our dialog */
@@ -567,11 +565,11 @@ static int load_dialog_vars_from_db(int fetch_num_rows)
 					}
 					dlg = dlg->next;
 					if (!dlg) {
-						LM_WARN("insonsistent data: the dialog h_entry/h_id does not exist!\n");
+						LM_WARN("inconsistent data: the dialog h_entry/h_id does not exist!\n");
 					}
 				}
 			} else {
-				LM_WARN("insonsistent data: the h_entry in the DB does not exist!\n");
+				LM_WARN("inconsistent data: the h_entry in the DB does not exist!\n");
 			}
 		}
 

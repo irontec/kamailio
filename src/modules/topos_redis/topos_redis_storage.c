@@ -279,7 +279,7 @@ int tps_redis_insert_dialog(tps_data_t *td)
 		}
 		return -1;
 	}
-	LM_DBG("expire set on dialog record for [%.*s] with argc %d\n",
+	LM_DBG("expire %lu set on dialog record for [%.*s] with argc %d\n", lval,
 			rkey.len, rkey.s, argc);
 	freeReplyObject(rrpl);
 
@@ -390,7 +390,7 @@ int tps_redis_insert_invite_branch(tps_data_t *td)
 		}
 		return -1;
 	}
-	LM_DBG("expire set on branch record for [%.*s] with argc %d\n",
+	LM_DBG("expire %lu set on branch record for [%.*s] with argc %d\n", lval,
 			rkey.len, rkey.s, argc);
 	freeReplyObject(rrpl);
 
@@ -518,7 +518,7 @@ int tps_redis_insert_branch(tps_data_t *td)
 		}
 		return -1;
 	}
-	LM_DBG("expire set on branch record for [%.*s] with argc %d\n",
+	LM_DBG("expire %lu set on branch record for [%.*s] with argc %d\n", lval,
 			rkey.len, rkey.s, argc);
 	freeReplyObject(rrpl);
 
@@ -727,6 +727,7 @@ int tps_redis_load_branch(sip_msg_t *msg, tps_data_t *md, tps_data_t *sd,
 	memset(argv, 0, TPS_REDIS_NR_KEYS * sizeof(char*));
 	memset(argvlen, 0, TPS_REDIS_NR_KEYS * sizeof(size_t));
 	argc = 0;
+	memset(&id, 0, sizeof(tps_data_t));
 
 	if(mode==0) {
 		/* load same transaction using Via branch */
@@ -738,6 +739,10 @@ int tps_redis_load_branch(sip_msg_t *msg, tps_data_t *md, tps_data_t *sd,
 			return -1;
 		}
 		xvbranch1 = &id.x_vbranch1;
+	}
+	if(xvbranch1->len<=0 || xvbranch1->s==NULL) {
+		LM_DBG("branch value not found (mode: %u)\n", mode);
+		return 1;
 	}
 	rp = _tps_redis_cbuf;
 	memcpy(rp, _tps_redis_bprefix.s, _tps_redis_bprefix.len);
@@ -1116,7 +1121,7 @@ int tps_redis_update_branch(sip_msg_t *msg, tps_data_t *md, tps_data_t *sd,
 		return -1;
 	}
 
-	if(md->s_method.len==6 && strncmp(md->s_method.s, "INVITE", 7)==0) {
+	if(md->s_method.len==6 && strncmp(md->s_method.s, "INVITE", 6)==0) {
 		if(tps_redis_insert_invite_branch(md)<0) {
 			LM_ERR("failed to insert INVITE extra branch data\n");
 			return -1;
@@ -1314,6 +1319,10 @@ int tps_redis_end_dialog(sip_msg_t *msg, tps_data_t *md, tps_data_t *sd)
 	int32_t liflags;
 	unsigned long lval = 0;
 
+	if(md->s_method_id != METHOD_BYE) {
+		return 0;
+	}
+
 	if(sd->a_uuid.len<=0 && sd->b_uuid.len<=0) {
 		LM_INFO("no uuid for this message\n");
 		return -1;
@@ -1409,7 +1418,7 @@ int tps_redis_end_dialog(sip_msg_t *msg, tps_data_t *md, tps_data_t *sd)
 		}
 		return -1;
 	}
-	LM_DBG("expire set on branch record for [%.*s] with argc %d\n",
+	LM_DBG("expire %lu set on dialog record for [%.*s] with argc %d\n", lval,
 			rkey.len, rkey.s, argc);
 	freeReplyObject(rrpl);
 

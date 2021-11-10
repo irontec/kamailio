@@ -47,6 +47,7 @@
 #include "../../core/parser/parser_f.h"
 #include "../../core/parser/parse_from.h"
 #include "../../core/ut.h"
+#include "../../core/fmsg.h"
 #include "../../core/timer.h"
 #include "../../core/timer_ticks.h"
 #include "../../core/hash_func.h"
@@ -89,7 +90,7 @@
 #define HF_LEN(_hf) ((_hf)->len)
 
 /* presumably matching transaction for an e2e ACK */
-static struct cell *t_ack;
+static struct cell *t_ack = NULL;
 
 /* this is a global variable which keeps pointer to
  * transaction currently processed by a process; it it
@@ -99,36 +100,52 @@ static struct cell *t_ack;
  * It has a valid value only if:
  * - it's checked inside a failure or tm on_reply route (not core
  *   on_reply[0]!)
- * - global_msg_id == msg->id in all the other kinds of routes
+ * - tm_global_ctx_id.{msgid, pid} == msg->{id, pid} in all the other kinds of routes
  * Note that this is the safest check and is valid also for
- * failure routes (because fake_env() sets global_msg_id) or tm
+ * failure routes (because fake_env() sets tm_global_ctx_id) or tm
  * tm onreply routes (the internal reply_received() t_check() will set
- * T and global_msg_id).
+ * T and tm_global_ctx_id).
  */
-static struct cell *T;
+static struct cell *T = NULL;
 
 /* this is a global variable which keeps the current branch
  * for the transaction currently processed.
- * It has a valid value only if T is valid (global_msg_id==msg->id -- see
- * above, and T!=0 and T!=T_UNDEFINED).
+ * It has a valid value only if T is valid (tm_global_ctx_id.{msgid, pid}==msg->{id, pid}
+ * -- see above, and T!=0 and T!=T_UNDEFINED).
  * For a request it's value is T_BR_UNDEFINED (it can have valid values only
  * for replies).
  */
-static int T_branch;
+static int T_branch = 0;
 
 /* number of currently processed message; good to know
  * to be able to doublecheck whether we are still working
  * on a current transaction or a new message arrived;
  * don't even think of changing it.
  */
-unsigned int     global_msg_id;
+msg_ctx_id_t tm_global_ctx_id = { 0 };
 
 
+struct cell *get_t()
+{
+	return T;
+}
 
-struct cell *get_t() { return T; }
-void set_t(struct cell *t, int branch) { T=t; T_branch=branch; }
-void init_t() {global_msg_id=0; set_t(T_UNDEFINED, T_BR_UNDEFINED);}
-int get_t_branch() { return T_branch; }
+void set_t(struct cell *t, int branch)
+{
+	T=t; T_branch=branch;
+}
+
+void init_t()
+{
+	tm_global_ctx_id.msgid=0;
+	tm_global_ctx_id.pid=0;
+	set_t(T_UNDEFINED, T_BR_UNDEFINED);
+}
+
+int get_t_branch()
+{
+	return T_branch;
+}
 
 static inline int parse_dlg( struct sip_msg *msg )
 {
@@ -411,7 +428,12 @@ static int matching_3261( struct sip_msg *p_msg, struct cell **trans,
 				/* found an existing cancel for the searched transaction */
 				*cancel=1;
 			}
-			if (skip_method & t_msg->REQ_METHOD) continue;
+			if (skip_method & t_msg->REQ_METHOD) {
+				LM_DBG("matched skip method - s:0x%x t:0x%x m:0x%x -"
+						" continue searching\n",
+						skip_method, t_msg->REQ_METHOD, p_msg->REQ_METHOD);
+				continue;
+			}
 		}
 found:
 		prefetch_w(p_cell); /* great chance of modifiying it */
@@ -432,7 +454,8 @@ e2eack_found:
 		*trans=e2e_ack_trans;
 		return 2;
 	}
-	LM_DBG("RFC3261 transaction matching failed\n");
+	LM_DBG("RFC3261 transaction matching failed - via branch [%.*s]\n",
+			via1->branch->value.len, via1->branch->value.s);
 	return 0;
 }
 
@@ -882,13 +905,13 @@ int t_reply_matching( struct sip_msg *p_msg , int *p_branch )
 
 	/* sanity check */
 	if (unlikely(reverse_hex2int(hashi, hashl, &hash_index)<0
-				||hash_index>=TABLE_ENTRIES
+				|| hash_index>=TABLE_ENTRIES
 				|| reverse_hex2int(branchi, branchl, &branch_id)<0
 				|| branch_id>=sr_dst_max_branches
 				|| loopl!=MD5_LEN)
 			) {
-		LM_DBG("poor reply labels %d label %d branch %d\n",
-				hash_index, entry_label, branch_id );
+		LM_DBG("poor reply ids - index %d label %d branch %d loopl %d/%d\n",
+				hash_index, entry_label, branch_id, loopl, MD5_LEN);
 		goto nomatch2;
 	}
 
@@ -1015,11 +1038,12 @@ int t_check_msg( struct sip_msg* p_msg , int *param_branch )
 
 	ret=0;
 	/* is T still up-to-date ? */
-	LM_DBG("msg (%p) id=%d global id=%d T start=%p\n",
-			p_msg,p_msg->id,global_msg_id,T);
-	if ( p_msg->id != global_msg_id || T==T_UNDEFINED )
+	LM_DBG("msg (%p) id=%u/%d global id=%u/%d T start=%p\n",
+			p_msg, p_msg->id, p_msg->pid, tm_global_ctx_id.msgid,
+			tm_global_ctx_id.pid, T);
+	if ( msg_ctx_id_match(p_msg, &tm_global_ctx_id)!=1 || T==T_UNDEFINED )
 	{
-		global_msg_id = p_msg->id;
+		msg_ctx_id_set(p_msg, &tm_global_ctx_id);
 		set_t(T_UNDEFINED, T_BR_UNDEFINED);
 		/* transaction lookup */
 		if ( p_msg->first_line.type==SIP_REQUEST ) {
@@ -1084,9 +1108,10 @@ int t_check_msg( struct sip_msg* p_msg , int *param_branch )
 					" (msg %p)\n", T, T->flags, p_msg);
 		}
 #endif
-		LM_DBG("msg (%p) id=%d global id=%d T end=%p\n",
-				p_msg,p_msg->id,global_msg_id,T);
-	} else { /*  ( p_msg->id == global_msg_id && T!=T_UNDEFINED ) */
+		LM_DBG("msg (%p) id=%u/%d global id=%u/%d T end=%p\n",
+				p_msg, p_msg->id, p_msg->pid, tm_global_ctx_id.msgid,
+				tm_global_ctx_id.pid, T);
+	} else { /* (msg_ctx_id_match(p_msg, &tm_global_ctx_id)!=1 || && T!=T_UNDEFINED ) */
 		if (T){
 			LM_DBG("T (%p) already found for msg (%p)!\n", T, p_msg);
 			ret=1;
@@ -1316,9 +1341,14 @@ int t_newtran( struct sip_msg* p_msg )
 
 
 	/* is T still up-to-date ? */
-	LM_DBG("msg id=%d , global msg id=%d ,"
-			" T on entrance=%p\n",p_msg->id,global_msg_id,T);
+	LM_DBG("msg (%p) id=%u/%d global id=%u/%d T start=%p\n",
+			p_msg, p_msg->id, p_msg->pid, tm_global_ctx_id.msgid,
+			tm_global_ctx_id.pid, T);
 
+	if(faked_msg_match(p_msg)) {
+		LM_INFO("attempt to create transaction for a faked request"
+				" - try to avoid it\n");
+	}
 	if ( T && T!=T_UNDEFINED  ) {
 		/* ERROR message moved to w_t_newtran */
 		LM_DBG("transaction already in process %p\n", T );
@@ -1332,7 +1362,7 @@ int t_newtran( struct sip_msg* p_msg )
 		return E_SCRIPT;
 	}
 
-	global_msg_id = p_msg->id;
+	msg_ctx_id_set(p_msg, &tm_global_ctx_id);
 	set_t(T_UNDEFINED, T_BR_UNDEFINED);
 	/* first of all, parse everything -- we will store in shared memory
 	 * and need to have all headers ready for generating potential replies
@@ -1553,11 +1583,12 @@ int t_get_canceled_ident(struct sip_msg* msg, unsigned int* hash_index,
  *                0).
  * @param hash_index - searched transaction hash_index (part of the ident).
  * @param label - searched transaction label (part of the ident).
+ * @param filter - if 1, skip transaction put on-wait (terminated state).
  * @return -1 on error/not found, 1 on success (found)
  * Side-effects: sets T and T_branch (T_branch always to T_BR_UNDEFINED).
  */
-int t_lookup_ident(struct cell ** trans, unsigned int hash_index,
-		unsigned int label)
+int t_lookup_ident_filter(struct cell ** trans, unsigned int hash_index,
+		unsigned int label, int filter)
 {
 	struct cell* p_cell;
 	struct entry* hash_bucket;
@@ -1575,9 +1606,19 @@ int t_lookup_ident(struct cell ** trans, unsigned int hash_index,
 #endif
 	hash_bucket=&(get_tm_table()->entries[hash_index]);
 	/* all the transactions from the entry are compared */
-	clist_foreach(hash_bucket, p_cell, next_c){
+	clist_foreach(hash_bucket, p_cell, next_c) {
 		prefetch_loc_r(p_cell->next_c, 1);
-		if(p_cell->label == label){
+		if(p_cell->label == label) {
+			if(filter==1) {
+				if(t_on_wait(p_cell)) {
+					/* transaction in terminated state */
+					UNLOCK_HASH(hash_index);
+					set_t(0, T_BR_UNDEFINED);
+					*trans=NULL;
+					LM_DBG("transaction in terminated phase - skipping\n");
+					return -1;
+				}
+			}
 			REF_UNSAFE(p_cell);
 			UNLOCK_HASH(hash_index);
 			set_t(p_cell, T_BR_UNDEFINED);
@@ -1589,14 +1630,27 @@ int t_lookup_ident(struct cell ** trans, unsigned int hash_index,
 
 	UNLOCK_HASH(hash_index);
 	set_t(0, T_BR_UNDEFINED);
-	*trans=p_cell;
+	*trans=NULL;
 
 	LM_DBG("transaction not found\n");
 
 	return -1;
 }
 
-
+/** lookup a transaction based on its identifier (hash_index:label).
+ * @param trans - double pointer to cell structure, that will be filled
+ *                with the result (a pointer to an existing transaction or
+ *                0).
+ * @param hash_index - searched transaction hash_index (part of the ident).
+ * @param label - searched transaction label (part of the ident).
+ * @return -1 on error/not found, 1 on success (found)
+ * Side-effects: sets T and T_branch (T_branch always to T_BR_UNDEFINED).
+ */
+int t_lookup_ident(struct cell ** trans, unsigned int hash_index,
+		unsigned int label)
+{
+	return t_lookup_ident_filter(trans, hash_index, label, 0);
+}
 
 /** check if a transaction is local or not.
  * Check if the transaction corresponding to the current message

@@ -15,8 +15,6 @@ Daniel-Constantin Mierla
 
    <miconda@gmail.com>
 
-Edited by
-
 Ovidiu Sas
 
    <osas@voipembedded.com.com>
@@ -66,7 +64,7 @@ Ovidiu Sas
               4.9. core.ps
               4.10. core.psx
               4.11. core.pwd
-              4.12. core.shmem
+              4.12. core.shmmem
               4.13. core.sockets_list
               4.14. core.tcp_info
               4.15. core.tcp_list
@@ -142,7 +140,7 @@ Chapter 1. Admin Guide
         4.9. core.ps
         4.10. core.psx
         4.11. core.pwd
-        4.12. core.shmem
+        4.12. core.shmmem
         4.13. core.sockets_list
         4.14. core.tcp_info
         4.15. core.tcp_list
@@ -376,7 +374,9 @@ pv_printf("$avp(x)", "From: $fU - To: $tU");
 3.11. is_myself(uri)
 
    Check if the parameter matches the 'myself' condition (i.e., is a local
-   IP or domain).
+   IP or domain). Note that if the port is missing in the URI, then no
+   port matching is done (in other words, port matching is skipped -- it
+   does not use default SIP ports 5060 or 5061 for matching).
 
    Meaning of the parameters is as follows:
      * uri - Valid SIP URI or IP address to check against the list of
@@ -440,7 +440,7 @@ resetdebug();
    4.9. core.ps
    4.10. core.psx
    4.11. core.pwd
-   4.12. core.shmem
+   4.12. core.shmmem
    4.13. core.sockets_list
    4.14. core.tcp_info
    4.15. core.tcp_list
@@ -532,7 +532,7 @@ kamcmd core.kill
 kamcmd core.pwd
 ...
 
-4.12.  core.shmem
+4.12.  core.shmmem
 
    Returns shared memory info. It has an optional parameter that specifies
    the measuring unit: b - bytes (default), k or kb, m or mb, g or gb.

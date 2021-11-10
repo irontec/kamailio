@@ -1040,17 +1040,20 @@ static int fix_domain(tls_domain_t* d, tls_domain_t* def)
 		* check server domains for server_name extension and register
 		* callback function
 		*/
-		if ((d->type & TLS_DOMAIN_SRV) && d->server_name.len>0) {
+		if ((d->type & TLS_DOMAIN_SRV)
+				&& (d->server_name.len>0 || (d->type & TLS_DOMAIN_DEF))) {
 			if (!SSL_CTX_set_tlsext_servername_callback(d->ctx[i], tls_server_name_cb)) {
 				LM_ERR("register server_name callback handler for socket "
 					"[%s:%d], server_name='%s' failed for proc %d\n",
-					ip_addr2a(&d->ip), d->port, d->server_name.s, i);
+					ip_addr2a(&d->ip), d->port,
+					(d->server_name.s)?d->server_name.s:"<default>", i);
 				return -1;
 			}
 			if (!SSL_CTX_set_tlsext_servername_arg(d->ctx[i], d)) {
 				LM_ERR("register server_name callback handler data for socket "
 					"[%s:%d], server_name='%s' failed for proc %d\n",
-					ip_addr2a(&d->ip), d->port, d->server_name.s, i);
+					ip_addr2a(&d->ip), d->port,
+					(d->server_name.s)?d->server_name.s:"<default>", i);
 				return -1;
 			}
 		}
@@ -1058,10 +1061,11 @@ static int fix_domain(tls_domain_t* d, tls_domain_t* def)
 	}
 
 #ifndef OPENSSL_NO_TLSEXT
-	if ((d->type & TLS_DOMAIN_SRV) && d->server_name.len>0) {
+	if ((d->type & TLS_DOMAIN_SRV)
+			&& (d->server_name.len>0 || (d->type & TLS_DOMAIN_DEF))) {
 		LM_NOTICE("registered server_name callback handler for socket "
 			"[%s:%d], server_name='%s' ...\n", ip_addr2a(&d->ip), d->port,
-			d->server_name.s);
+			(d->server_name.s)?d->server_name.s:"<default>");
 	}
 #endif
 
@@ -1359,7 +1363,7 @@ tls_domain_t* tls_lookup_cfg(tls_domains_cfg_t* cfg, int type,
 				p->server_id.len, ZSW(p->server_id.s),
 				srvid->len, ZSW(srvid->s));
 			if(p->server_id.s && p->server_id.len==srvid->len
-					&& strncasecmp(p->server_name.s, srvid->s, srvid->len)==0) {
+					&& strncasecmp(p->server_id.s, srvid->s, srvid->len)==0) {
 				LM_DBG("TLS config found by server id\n");
 				return p;
 			}

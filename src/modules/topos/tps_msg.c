@@ -346,7 +346,7 @@ int tps_pack_message(sip_msg_t *msg, tps_data_t *ptsd)
 			i++;
 			vlen = tps_skip_rw(via->name.s, via->bsize);
 			if(ptsd->cp + vlen + 2 >= ptsd->cbuf + TPS_DATA_SIZE) {
-				LM_ERR("no more spage to pack via headers\n");
+				LM_ERR("no more space to pack via headers\n");
 				return -1;
 			}
 			if(i>1) {
@@ -393,7 +393,7 @@ int tps_pack_message(sip_msg_t *msg, tps_data_t *ptsd)
 		for(rr =(rr_t*)hdr->parsed; rr; rr=rr->next) {
 			i++;
 			if(ptsd->cp + rr->nameaddr.uri.len + 4 >= ptsd->cbuf + TPS_DATA_SIZE) {
-				LM_ERR("no more spage to pack rr headers\n");
+				LM_ERR("no more space to pack rr headers\n");
 				return -1;
 			}
 			if(isreq==1) {
@@ -936,7 +936,7 @@ int tps_request_sent(sip_msg_t *msg, int dialog, int local)
 	memset(&mtsd, 0, sizeof(tps_data_t));
 	memset(&btsd, 0, sizeof(tps_data_t));
 	memset(&stsd, 0, sizeof(tps_data_t));
-	ptsd = &mtsd;
+	ptsd = NULL;
 
 	if(tps_pack_message(msg, &mtsd)<0) {
 		LM_ERR("failed to extract and pack the headers\n");
@@ -956,14 +956,6 @@ int tps_request_sent(sip_msg_t *msg, int dialog, int local)
 
 	tps_storage_lock_get(&lkey);
 
-	if(tps_storage_load_branch(msg, &mtsd, &btsd, 0)!=0) {
-		if(tps_storage_record(msg, ptsd, dialog)<0) {
-			goto error;
-		}
-	} else {
-		ptsd = &btsd;
-	}
-
 	if(dialog!=0) {
 		if(tps_storage_load_dialog(msg, &mtsd, &stsd)==0) {
 			ptsd = &stsd;
@@ -974,6 +966,16 @@ int tps_request_sent(sip_msg_t *msg, int dialog, int local)
 		}
 		mtsd.direction = direction;
 	}
+
+	if(tps_storage_load_branch(msg, &mtsd, &btsd, 0)!=0) {
+		if(tps_storage_record(msg, &mtsd, dialog, direction)<0) {
+			goto error;
+		}
+	} else {
+		if(ptsd==NULL) ptsd = &btsd;
+	}
+
+	if(ptsd==NULL) ptsd = &mtsd;
 
 	/* local generated requests */
 	if(local) {
@@ -1027,6 +1029,7 @@ int tps_response_sent(sip_msg_t *msg)
 	str lkey;
 	uint32_t direction = TPS_DIR_UPSTREAM;
 	str xvbranch = {0, 0};
+	int contact_keep = 0;
 
 	LM_DBG("handling outgoing response\n");
 
@@ -1072,12 +1075,24 @@ int tps_response_sent(sip_msg_t *msg)
 	mtsd.direction = direction;
 
 	tps_remove_headers(msg, HDR_RECORDROUTE_T);
-	tps_remove_headers(msg, HDR_CONTACT_T);
 
-	if(direction==TPS_DIR_DOWNSTREAM) {
-		tps_reinsert_contact(msg, &stsd, &stsd.as_contact);
-	} else {
-		tps_reinsert_contact(msg, &stsd, &stsd.bs_contact);
+	/* keep contact without updates for redirect responses sent out */
+	if(msg->first_line.u.reply.statuscode>=300
+			&& msg->first_line.u.reply.statuscode<400) {
+		contact_keep = 1;
+	}
+	if(contact_keep==0 && msg->first_line.u.reply.statuscode>100
+				&& msg->first_line.u.reply.statuscode<200
+				&& msg->contact==NULL) {
+		contact_keep = 1;
+	}
+	if(contact_keep==0) {
+		tps_remove_headers(msg, HDR_CONTACT_T);
+		if(direction==TPS_DIR_DOWNSTREAM) {
+			tps_reinsert_contact(msg, &stsd, &stsd.as_contact);
+		} else {
+			tps_reinsert_contact(msg, &stsd, &stsd.bs_contact);
+		}
 	}
 
 	tps_reappend_rr(msg, &btsd, &btsd.x_rr);

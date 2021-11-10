@@ -30,6 +30,12 @@
  * sip router core part.
  */
 
+#ifdef KSR_PTHREAD_MUTEX_SHARED
+#define _GNU_SOURCE
+#include <pthread.h>
+#include <dlfcn.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -197,11 +203,11 @@ Options:\n\
     -M nr        Size of private memory allocated, in Megabytes\n\
     -w dir       Change the working directory to \"dir\" (default: \"/\")\n\
     -t dir       Chroot to \"dir\"\n\
-    -u uid       Change uid \n\
-    -g gid       Change gid \n\
+    -u uid       Change uid (user id)\n\
+    -g gid       Change gid (group id)\n\
     -P file      Create a pid file\n\
     -G file      Create a pgid file\n\
-    -Y dir       Runtime dir\n\
+    -Y dir       Runtime dir path\n\
     -O nr        Script optimization level (debugging option)\n\
     -a mode      Auto aliases mode: enable with yes or on,\n\
                   disable with no or off\n\
@@ -211,7 +217,7 @@ Options:\n\
     -X name      Specify internal manager for private memory (pkg)\n\
                   - if omitted, the one for shm is used\n"
 #ifdef STATS
-"    -s file     File to which statistics is dumped (disabled otherwise)\n"
+"    -s file     File where to write internal statistics on SIGUSR1\n"
 #endif
 ;
 
@@ -227,9 +233,9 @@ void print_ct_constants(void)
 	printf("SHM_MEM_SIZE=%d, ", SHM_MEM_SIZE);
 #endif
 */
-	printf("MAX_RECV_BUFFER_SIZE %d, MAX_LISTEN %d,"
+	printf("MAX_RECV_BUFFER_SIZE %d"
 			" MAX_URI_SIZE %d, BUF_SIZE %d, DEFAULT PKG_SIZE %uMB\n",
-		MAX_RECV_BUFFER_SIZE, MAX_LISTEN, MAX_URI_SIZE,
+		MAX_RECV_BUFFER_SIZE, MAX_URI_SIZE,
 		BUF_SIZE, PKG_MEM_SIZE);
 #ifdef USE_TCP
 	printf("poll method support: %s.\n", poll_support);
@@ -245,7 +251,6 @@ void print_internals(void)
 	printf("  Default paths to modules: %s\n", MODS_DIR);
 	printf("  Compile flags: %s\n", ver_flags );
 	printf("  MAX_RECV_BUFFER_SIZE=%d\n", MAX_RECV_BUFFER_SIZE);
-	printf("  MAX_LISTEN=%d\n", MAX_LISTEN);
 	printf("  MAX_URI_SIZE=%d\n", MAX_URI_SIZE);
 	printf("  BUF_SIZE=%d\n", BUF_SIZE);
 	printf("  DEFAULT PKG_SIZE=%uMB\n", PKG_MEM_SIZE);
@@ -421,12 +426,6 @@ int pmtu_discovery = 0;
 
 int auto_bind_ipv6 = 0;
 
-#if 0
-char* names[MAX_LISTEN];              /* our names */
-int names_len[MAX_LISTEN];            /* lengths of the names*/
-struct ip_addr addresses[MAX_LISTEN]; /* our ips */
-int addresses_no=0;                   /* number of names/ips */
-#endif
 struct socket_info* udp_listen=0;
 #ifdef USE_TCP
 int tcp_main_pid=0; /* set after the tcp main process is started */
@@ -942,10 +941,16 @@ int parse_proto(unsigned char* s, long len, int* proto)
 				break;
 #ifdef USE_TCP
 			case PROTO2UINT3('t', 'c', 'p'):
+				if (tcp_disable) {
+					return -1;
+				}
 				*proto=PROTO_TCP;
 				break;
 #ifdef USE_TLS
 			case PROTO2UINT3('t', 'l', 's'):
+				if (tcp_disable || tls_disable) {
+					return -1;
+				}
 				*proto=PROTO_TLS;
 				break;
 #endif
@@ -957,10 +962,14 @@ int parse_proto(unsigned char* s, long len, int* proto)
 #ifdef USE_SCTP
 	else if (likely(len==4)){
 		i=PROTO2UINT4(s[0], s[1], s[2], s[3]);
-		if (i==PROTO2UINT4('s', 'c', 't', 'p'))
+		if (i==PROTO2UINT4('s', 'c', 't', 'p')) {
+			if (sctp_disable) {
+				return -1;
+			}
 			*proto=PROTO_SCTP;
-		else
+		} else {
 			return -1;
+		}
 	}
 #endif /* USE_SCTP */
 	else
@@ -1534,12 +1543,20 @@ int main_loop(void)
 				/* get first ipv4/ipv6 socket*/
 				if ((si->address.af==AF_INET)&&
 						((sendipv4_tls==0) ||
-							(sendipv4_tls->flags&(SI_IS_LO|SI_IS_MCAST))))
+						 (sendipv4_tls->flags&(SI_IS_LO|SI_IS_MCAST)))) {
 					sendipv4_tls=si;
+					if(sendipv4_tcp==0) {
+						sendipv4_tcp=si;
+					}
+				}
 				if( ((sendipv6_tls==0) ||
 							(sendipv6_tls->flags&(SI_IS_LO|SI_IS_MCAST))) &&
-						(si->address.af==AF_INET6))
+						(si->address.af==AF_INET6)) {
 					sendipv6_tls=si;
+					if(sendipv6_tcp==0) {
+						sendipv6_tcp=si;
+					}
+				}
 			}
 		}
 #endif /* USE_TLS */
@@ -1894,6 +1911,10 @@ int main(int argc, char** argv)
 					log_color=1;
 					break;
 			case 'M':
+					if (optarg == NULL) {
+						fprintf(stderr, "bad private mem size\n");
+						goto error;
+					}
 					pkg_mem_size=strtol(optarg, &tmp, 10) * 1024 * 1024;
 					if (tmp &&(*tmp)){
 						fprintf(stderr, "bad private mem size number: -M %s\n",
@@ -2191,10 +2212,25 @@ try_again:
 						goto error;
 					}
 					break;
+			case 'T':
+				#ifdef USE_TCP
+					tcp_disable=1;
+				#else
+					fprintf(stderr,"WARNING: tcp support not compiled in\n");
+				#endif
+					break;
+			case 'S':
+				#ifdef USE_SCTP
+					sctp_disable=1;
+				#else
+					fprintf(stderr,"WARNING: sctp support not compiled in\n");
+				#endif
+					break;
 			case 'l':
 					if ((n_lst=parse_phostport_mh(optarg, &tmp, &tmp_len,
 											&port, &proto))==0){
-						fprintf(stderr, "bad -l address specifier: %s\n",
+						fprintf(stderr, "bad -l address specifier: %s\n"
+											"Check disabled protocols\n",
 										optarg);
 						goto error;
 					}
@@ -2227,15 +2263,13 @@ try_again:
 			case 'D':
 					dont_fork_cnt++;
 					break;
-			case 'T':
-				#ifdef USE_TCP
-					tcp_disable=1;
-				#else
-					fprintf(stderr,"WARNING: tcp support not compiled in\n");
-				#endif
-					break;
 			case 'N':
 				#ifdef USE_TCP
+					if (tcp_disable) {
+						fprintf(stderr, "could not configure TCP children: -N %s\n"
+ 									"TCP support disabled\n", optarg);
+						goto error;
+					}
 					tcp_cfg_children_no=strtol(optarg, &tmp, 10);
 					if ((tmp==0) ||(*tmp)){
 						fprintf(stderr, "bad process number: -N %s\n",
@@ -2258,15 +2292,13 @@ try_again:
 					fprintf(stderr,"WARNING: tcp support not compiled in\n");
 				#endif
 					break;
-			case 'S':
-				#ifdef USE_SCTP
-					sctp_disable=1;
-				#else
-					fprintf(stderr,"WARNING: sctp support not compiled in\n");
-				#endif
-					break;
 			case 'Q':
 				#ifdef USE_SCTP
+					if (sctp_disable) {
+						fprintf(stderr, "could not configure SCTP children: -Q %s\n"
+									"SCTP support disabled\n", optarg);
+						goto error;
+					}
 					sctp_children_no=strtol(optarg, &tmp, 10);
 					if ((tmp==0) ||(*tmp)){
 						fprintf(stderr, "bad process number: -O %s\n",
@@ -2615,8 +2647,8 @@ try_again:
 	 * function being called before this point may rely on the
 	 * number of processes !
 	 */
-	LM_DBG("Expect (at least) %d kamailio processes in your process list\n",
-			get_max_procs());
+	LM_INFO("processes (at least): %d - shm size: %lu - pkg size: %lu\n",
+			get_max_procs(), shm_mem_size, pkg_mem_size);
 
 #if defined USE_DNS_CACHE && defined USE_DNS_CACHE_STATS
 	if (init_dns_cache_stats(get_max_procs())<0){
@@ -2665,3 +2697,72 @@ error:
 	}
 	return -1;
 }
+
+
+#ifdef KSR_PTHREAD_MUTEX_SHARED
+
+/**
+ * code to set PTHREAD_PROCESS_SHARED attribute for phtread mutex to cope
+ * with libssl 1.1+ thread-only mutex initialization
+ */
+
+#define SYMBOL_EXPORT __attribute__((visibility("default")))
+
+int SYMBOL_EXPORT pthread_mutex_init (pthread_mutex_t *__mutex,
+		const pthread_mutexattr_t *__mutexattr)
+{
+	static int (*real_pthread_mutex_init)(pthread_mutex_t *__mutex,
+			const pthread_mutexattr_t *__mutexattr) = 0;
+	pthread_mutexattr_t attr;
+	int ret;
+
+	if (!real_pthread_mutex_init) {
+		real_pthread_mutex_init = dlsym(RTLD_NEXT, "pthread_mutex_init");
+		if (!real_pthread_mutex_init) {
+			return -1;
+		}
+	}
+
+	if (__mutexattr) {
+		pthread_mutexattr_t attr = *__mutexattr;
+		pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
+		return real_pthread_mutex_init(__mutex, &attr);
+	}
+
+	pthread_mutexattr_init(&attr);
+	pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
+	ret = real_pthread_mutex_init(__mutex, &attr);
+	pthread_mutexattr_destroy(&attr);
+
+	return ret;
+}
+
+int SYMBOL_EXPORT pthread_rwlock_init (pthread_rwlock_t *__restrict __rwlock,
+				const pthread_rwlockattr_t *__restrict __attr)
+{
+	static int (*real_pthread_rwlock_init)(pthread_rwlock_t *__restrict __rwlock,
+				const pthread_rwlockattr_t *__restrict __attr) = 0;
+	pthread_rwlockattr_t attr;
+	int ret;
+
+	if (!real_pthread_rwlock_init) {
+		real_pthread_rwlock_init = dlsym(RTLD_NEXT, "pthread_rwlock_init");
+		if (!real_pthread_rwlock_init) {
+			return -1;
+		}
+	}
+
+	if (__attr) {
+		pthread_rwlockattr_t attr = *__attr;
+		pthread_rwlockattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
+		return real_pthread_rwlock_init(__rwlock, &attr);
+	}
+
+	pthread_rwlockattr_init(&attr);
+	pthread_rwlockattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
+	ret = real_pthread_rwlock_init(__rwlock, &attr);
+	pthread_rwlockattr_destroy(&attr);
+
+	return ret;
+}
+#endif

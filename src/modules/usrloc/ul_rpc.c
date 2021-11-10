@@ -421,6 +421,7 @@ static void ul_rpc_lookup(rpc_t* rpc, void* ctx)
 
 	if (rpc->add(ctx, "{", &th) < 0)
 	{
+		release_urecord(rec);
 		unlock_udomain(dom, &aor);
 		rpc->fault(ctx, 500, "Internal error creating outer rpc");
 		return;
@@ -429,6 +430,7 @@ static void ul_rpc_lookup(rpc_t* rpc, void* ctx)
 				"AoR", &aor,
 				"Contacts", &ih)<0)
 	{
+		release_urecord(rec);
 		unlock_udomain(dom, &aor);
 		rpc->fault(ctx, 500, "Internal error creating aor struct");
 		return;
@@ -439,12 +441,13 @@ static void ul_rpc_lookup(rpc_t* rpc, void* ctx)
 		if (VALID_CONTACT( con, act_time)) {
 			rpl_tree++;
 			if (rpc_dump_contact(rpc, ctx, ih, con) == -1) {
+				release_urecord(rec);
 				unlock_udomain(dom, &aor);
 				return;
 			}
 		}
 	}
-
+	release_urecord(rec);
 	unlock_udomain( dom, &aor);
 
 	if (rpl_tree==0) {
@@ -533,17 +536,20 @@ static void ul_rpc_rm_contact(rpc_t* rpc, void* ctx)
 
 	ret = get_ucontact( rec, &contact, &rpc_ul_cid, &rpc_ul_path, RPC_UL_CSEQ+1, &con);
 	if (ret < 0) {
+		release_urecord(rec);
 		unlock_udomain( dom, &aor);
 		rpc->fault(ctx, 500, "Internal error (can't get contact)");
 		return;
 	}
 	if (ret > 0) {
+		release_urecord(rec);
 		unlock_udomain( dom, &aor);
 		rpc->fault(ctx, 404, "Contact not found");
 		return;
 	}
 
 	if (delete_ucontact(rec, con) < 0) {
+		release_urecord(rec);
 		unlock_udomain( dom, &aor);
 		rpc->fault(ctx, 500, "Internal error (can't delete contact)");
 		return;
@@ -600,6 +606,7 @@ static void ul_rpc_add(rpc_t* rpc, void* ctx)
 	str aor = {0, 0};
 	str contact = {0, 0};
 	str path = {0, 0};
+	str received = {0, 0};
 	str socket = {0, 0};
 	str temp = {0, 0};
 	double dtemp;
@@ -612,7 +619,7 @@ static void ul_rpc_add(rpc_t* rpc, void* ctx)
 	memset(&ci, 0, sizeof(ucontact_info_t));
 
 	ret = rpc->scan(ctx, "SSSdfSddd*SS", &table, &aor, &contact, &ci.expires,
-			&dtemp, &path, &ci.flags, &ci.cflags, &ci.methods, &ci.received,
+			&dtemp, &path, &ci.flags, &ci.cflags, &ci.methods, &received,
 			&socket);
 	if (ret < 9) {
 		LM_ERR("not enough parameters - read so far: %d\n", ret);
@@ -626,9 +633,9 @@ static void ul_rpc_add(rpc_t* rpc, void* ctx)
 	}
 	if(ret>9) {
 		/* received parameter */
-		if(!ul_rpc_is_param_set(&ci.received)) {
-			ci.received.s = 0;
-			ci.received.len = 0;
+		if(ul_rpc_is_param_set(&received)) {
+			ci.received.s = received.s;
+			ci.received.len = received.len;
 		}
 	}
 	if(ret>10) {
@@ -659,7 +666,7 @@ static void ul_rpc_add(rpc_t* rpc, void* ctx)
 		return;
 	}
 
-	if(sruid_next(&_ul_sruid)<0)
+	if(sruid_next_safe(&_ul_sruid)<0)
 	{
 		rpc->fault(ctx, 500, "Can't obtain next uid");
 		return;

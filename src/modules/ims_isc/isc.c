@@ -56,7 +56,7 @@
  * @param mark  - the isc_mark that should be used to mark the message
  * @returns #ISC_RETURN_TRUE if OK, #ISC_RETURN_ERROR if not
  */
-int isc_forward(struct sip_msg *msg, isc_match *m, isc_mark *mark) {
+int isc_forward(struct sip_msg *msg, isc_match *m, isc_mark *mark, int firstflag) {
 	struct cell *t;
 	unsigned int hash, label;
 	ticks_t fr_timeout, fr_inv_timeout;
@@ -66,16 +66,17 @@ int isc_forward(struct sip_msg *msg, isc_match *m, isc_mark *mark) {
 	/* change destination so it forwards to the app server */
 	if (msg->dst_uri.s)
 		pkg_free(msg->dst_uri.s);
-	msg->dst_uri.s = pkg_malloc(m->server_name.len);
+	msg->dst_uri.s = pkg_malloc(m->server_name.len + 1);
 	if (!msg->dst_uri.s) {
 		LM_ERR("error allocating %d bytes\n", m->server_name.len);
 		return ISC_RETURN_ERROR;
 	}
 	msg->dst_uri.len = m->server_name.len;
 	memcpy(msg->dst_uri.s, m->server_name.s, m->server_name.len);
+	msg->dst_uri.s[msg->dst_uri.len] = '\0';
 
 	/* append branch if last trigger failed */
-	if (is_route_type(FAILURE_ROUTE))
+	if (is_route_type(FAILURE_ROUTE) && !firstflag)
 		append_branch(msg, &(msg->first_line.u.request.uri), &(msg->dst_uri), 0, Q_UNSPECIFIED, 0, 0, 0, 0, 0, 0);
 
 	// Determines the tm transaction identifiers.

@@ -107,8 +107,13 @@ error_release:
 	return 0;
 }
 
-#if !defined(HAVE_SO_KEEPALIVE) || !defined(HAVE_TCP_KEEPIDLE) || !defined(HAVE_TCP_KEEPCNT) || !defined(HAVE_TCP_KEEPINTVL)
-	#warning "TCP keepalive is not fully supported by your platform"
+#if !defined(HAVE_SO_KEEPALIVE) || !defined(HAVE_TCP_KEEPCNT) || !defined(HAVE_TCP_KEEPINTVL)
+	#define KSR_TCPOPS_NOKEEPALIVE
+#endif
+
+#ifdef KSR_TCPOPS_NOKEEPALIVE
+
+#warning "TCP keepalive options not supported by this platform"
 
 int tcpops_keepalive_enable(int fd, int idle, int count, int interval, int closefd)
 {
@@ -121,6 +126,7 @@ int tcpops_keepalive_disable(int fd, int closefd)
 	LM_ERR("tcp_keepalive_disable() failed: this module does not support your platform\n");
 	return -1;
 }
+
 #else
 
 int tcpops_keepalive_enable(int fd, int idle, int count, int interval, int closefd)
@@ -133,11 +139,15 @@ int tcpops_keepalive_enable(int fd, int idle, int count, int interval, int close
 		LM_ERR("failed to enable SO_KEEPALIVE: %s\n", strerror(errno));
 		return -1;
 	} else {
-
+#ifdef HAVE_TCP_KEEPIDLE
 		if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle,
 						sizeof(idle))<0){
 			LM_ERR("failed to set keepalive idle interval: %s\n", strerror(errno));
 		}
+#else
+		#warning "TCP_KEEPIDLE option not supported by this platform"
+		LM_DBG("TCP_KEEPIDLE option not available - ignoring\n");
+#endif
 
 		if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &count,
 						sizeof(count))<0){
@@ -204,6 +214,7 @@ static void tcpops_tcp_closed_run_route(tcp_closed_event_info_t *tev)
 	sip_msg_t *fmsg;
 
 	rt = tcp_closed_routes[tev->reason];
+	LM_DBG("event reason id: %d rt: %d\n", tev->reason, rt);
 	if (rt == -1) return;
 
 	if (faked_msg_init() < 0)
@@ -229,11 +240,13 @@ int tcpops_handle_tcp_closed(sr_event_param_t *evp)
 		LM_WARN("received bad TCP closed event\n");
 		return -1;
 	}
+	LM_DBG("received TCP closed event\n");
 
 	/* run event route if tcp_closed_event == 1 or if the
 	 * F_CONN_CLOSE_EV flag is explicitly set */
-	if (tcp_closed_event == 1 || (tev->con->flags & F_CONN_CLOSE_EV))
+	if (tcp_closed_event == 1 || (tev->con->flags & F_CONN_CLOSE_EV)) {
 		tcpops_tcp_closed_run_route(tev);
+	}
 
 	return 0;
 }
