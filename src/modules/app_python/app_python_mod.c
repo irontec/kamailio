@@ -26,6 +26,7 @@
 #include "../../core/sr_module.h"
 #include "../../core/mod_fix.h"
 #include "../../core/kemi.h"
+#include "../../core/cfg/cfg_struct.h"
 
 #include "python_exec.h"
 #include "python_iface.h"
@@ -160,7 +161,7 @@ static int mod_init(void)
 	if(apy_load_script()<0) {
 		pkg_free(dname_src);
 		pkg_free(bname_src);
-		LM_ERR("failed to load python script\n");
+		LM_ERR("failed to load python script: %s\n", _sr_python_load_file.s);
 		return -1;
 	}
 
@@ -175,6 +176,9 @@ static int mod_init(void)
 static int child_init(int rank)
 {
 	_apy_process_rank = rank;
+	if (cfg_child_init()) {
+		return -1;
+	}
 	return apy_init_script(rank);
 }
 
@@ -508,6 +512,11 @@ static int ki_app_python_exec_p1(sip_msg_t *msg, str *method, str *p1)
 /* clang-format off */
 static sr_kemi_t sr_kemi_app_python_exports[] = {
 	{ str_init("app_python"), str_init("exec"),
+		SR_KEMIP_INT, ki_app_python_exec,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init("app_python"), str_init("execx"),
 		SR_KEMIP_INT, ki_app_python_exec,
 		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }

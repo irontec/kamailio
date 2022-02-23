@@ -45,9 +45,10 @@
 	<section>
 	<title>How it works</title>
 	<para>
-	To create the dialog associated with an initial request, the flag
-	<quote>dlg_flag</quote> (<xref linkend="dialog.p.flag"/>) must be set before
-	creating the corresponding transaction.
+	To create the dialog associated with an initial INVITE request, execute
+	the function <quote>dlg_manage()</quote> or set the flag specified by
+	parameter <quote>dlg_flag</quote> (<xref linkend="dialog.p.flag"/>)
+	before creating the corresponding transaction.
 	</para>
 	<para>
 	The dialog is automatically destroyed when a <quote>BYE</quote> is
@@ -256,6 +257,12 @@ modparam("dialog", "rr_param", "xyz")
 		current request (this make sense only for initial requests).
 		</para>
 		<para>
+		Note: it is not needed to set this parameter and its corresponding flag
+		for initial request in case the <quote>dlg_manage()</quote> function
+		is used. In other words, using <quote>dlg_manage()</quote> alone is
+		enough.
+		</para>
+		<para>
 		<emphasis>
 			Default value is <quote>none</quote>.
 		</emphasis>
@@ -316,8 +323,8 @@ modparam("dialog", "default_timeout", 21600)
 	<section id="dialog.p.early_timeout">
 		<title><varname>early_timeout</varname> (integer)</title>
 		<para>
-		The timeout (in seconds) after which the dialogs in early state (no
-		final response received) are destroyed.
+		The timeout (in seconds) after which the dialogs in unconfirmed or early
+		state (no final response received) are destroyed.
 		</para>
 		<para>
 		<emphasis>
@@ -351,6 +358,27 @@ modparam("dialog", "early_timeout", 180)
 		<programlisting format="linespecific">
 ...
 modparam("dialog", "noack_timeout", 90)
+...
+</programlisting>
+		</example>
+	</section>
+
+	<section id="dialog.p.end_timeout">
+		<title><varname>end_timeout</varname> (integer)</title>
+		<para>
+		The timeout (in seconds) after which the dialogs in terminated state
+		are destroyed.
+		</para>
+		<para>
+		<emphasis>
+			Default value is <quote>300 (5 minutes)</quote>.
+		</emphasis>
+		</para>
+		<example>
+		<title>Set <varname>end_timeout</varname> parameter</title>
+		<programlisting format="linespecific">
+...
+modparam("dialog", "end_timeout", 180)
 ...
 </programlisting>
 		</example>
@@ -2292,9 +2320,9 @@ if(has_totag() and is_present_hf("Route") and uri==myself ) {
 		<para>RPC Command Format:</para>
 		<programlisting  format="linespecific">
 ...
-&kamcmd; dlg.list abcdrssfrs122444@192.168.1.1 AAdfeEFF33
+&kamcmd; dlg.dlg_list abcdrssfrs122444@192.168.1.1 AAdfeEFF33
 ...
-&kamcmd; dlg.list abcdrssfrs122444@192.168.1.1
+&kamcmd; dlg.dlg_list abcdrssfrs122444@192.168.1.1
 ...
 		</programlisting>
 		</section>
@@ -2333,7 +2361,7 @@ if(has_totag() and is_present_hf("Route") and uri==myself ) {
 				<emphasis>from_tag</emphasis> -  from tag of the dialog to terminated
 			</para></listitem>
 			<listitem><para>
-				<emphasis>totag</emphasis> -  to tag of the dialog to terminated
+				<emphasis>to_tag</emphasis> -  to tag of the dialog to terminated
 			</para></listitem>
 		</itemizedlist>
 		<para>
@@ -2341,7 +2369,7 @@ if(has_totag() and is_present_hf("Route") and uri==myself ) {
 		</para>
 		<para>RPC Command Format:</para>
 		<programlisting  format="linespecific">
-		kamcmd dlg.dlg_terminate_dlg callid12345 fromtag123 totag123
+		kamcmd dlg.terminate_dlg callid12345 fromtag123 totag123
 		</programlisting>
 		</section>
 		<section>
@@ -2452,11 +2480,17 @@ if(has_totag() and is_present_hf("Route") and uri==myself ) {
 				<emphasis>to</emphasis> - SIP address to refer 'from' to
 			</para></listitem>
 			<listitem><para>
-				<emphasis>op</emphasis> (optional) - outbound proxy SIP address
+				<emphasis>op</emphasis> (optional) - outbound proxy SIP address.
+				If its value is set to '.' (dot), then it is ignored (like it
+				would not have been provided).
 			</para></listitem>
 			<listitem><para>
 				<emphasis>body</emphasis> (optional) - SDP body for initial
-				INVITE
+				INVITE. If its value is set to '.' (dot), then it is ignored
+				(like it would not have been provided). If body is not set via
+				RPC command parameter, then an internal generated SDP with G711a
+				and G711u is used. If its value is set to '' (empty string) or
+				'_' (underline), then the INVITE is sent without an SDP body.
 			</para></listitem>
 		</itemizedlist>
 		<para>RPC Command Format:</para>

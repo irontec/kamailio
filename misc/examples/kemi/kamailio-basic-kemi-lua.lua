@@ -299,7 +299,7 @@ function ksr_route_natmanage()
 	KSR.rtpproxy.rtpproxy_manage("co");
 
 	if KSR.siputils.is_request()>0 then
-		if not KSR.siputils.has_totag() then
+		if KSR.siputils.has_totag()<0 then
 			if KSR.tmx.t_is_branch_route()>0 then
 				KSR.rr.add_rr_param(";nat=yes");
 			end
@@ -325,7 +325,7 @@ end
 function ksr_route_sipout()
 	if KSR.is_myself(KSR.pv.get("$ru")) then return 1; end
 
-	KSR.hdr.append_hf("P-Hint: outbound\r\n");
+	KSR.hdr.append("P-Hint: outbound\r\n");
 	ksr_route_relay();
 	KSR.x.exit();
 end

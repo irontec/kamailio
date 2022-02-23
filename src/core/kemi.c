@@ -31,6 +31,7 @@
 #include "data_lump.h"
 #include "data_lump_rpl.h"
 #include "strutils.h"
+#include "select_buf.h"
 #include "mem/shm.h"
 #include "parser/parse_uri.h"
 #include "parser/parse_hname2.h"
@@ -95,6 +96,36 @@ static int sr_kemi_core_info(sip_msg_t *msg, str *txt)
 /**
  *
  */
+static int sr_kemi_core_warn(sip_msg_t *msg, str *txt)
+{
+	if(txt!=NULL && txt->s!=NULL)
+		LM_WARN("%.*s", txt->len, txt->s);
+	return 0;
+}
+
+/**
+ *
+ */
+static int sr_kemi_core_notice(sip_msg_t *msg, str *txt)
+{
+	if(txt!=NULL && txt->s!=NULL)
+		LM_NOTICE("%.*s", txt->len, txt->s);
+	return 0;
+}
+
+/**
+ *
+ */
+static int sr_kemi_core_crit(sip_msg_t *msg, str *txt)
+{
+	if(txt!=NULL && txt->s!=NULL)
+		LM_CRIT("%.*s", txt->len, txt->s);
+	return 0;
+}
+
+/**
+ *
+ */
 static int sr_kemi_core_log(sip_msg_t *msg, str *level, str *txt)
 {
 	if(txt!=NULL && txt->s!=NULL) {
@@ -105,8 +136,12 @@ static int sr_kemi_core_log(sip_msg_t *msg, str *level, str *txt)
 				LM_DBG("%s", txt->s);
 			} else if(strcasecmp(level->s, "info")==0) {
 				LM_INFO("%s", txt->s);
+			} else if(strcasecmp(level->s, "notice")==0) {
+				LM_NOTICE("%s", txt->s);
 			} else if(strcasecmp(level->s, "warn")==0) {
 				LM_WARN("%s", txt->s);
+			} else if(strcasecmp(level->s, "err")==0) {
+				LM_ERR("%s", txt->s);
 			} else if(strcasecmp(level->s, "crit")==0) {
 				LM_CRIT("%s", txt->s);
 			} else {
@@ -712,6 +747,21 @@ static sr_kemi_t _sr_kemi_core[] = {
 	},
 	{ str_init(""), str_init("info"),
 		SR_KEMIP_NONE, sr_kemi_core_info,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init(""), str_init("warn"),
+		SR_KEMIP_NONE, sr_kemi_core_warn,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init(""), str_init("notice"),
+		SR_KEMIP_NONE, sr_kemi_core_notice,
+		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
+			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
+	},
+	{ str_init(""), str_init("crit"),
+		SR_KEMIP_NONE, sr_kemi_core_crit,
 		{ SR_KEMIP_STR, SR_KEMIP_NONE, SR_KEMIP_NONE,
 			SR_KEMIP_NONE, SR_KEMIP_NONE, SR_KEMIP_NONE }
 	},
@@ -1614,4 +1664,37 @@ done:
 	sret.s = pbuf;
 	sret.len = strlen(sret.s);
 	return &sret;
+}
+
+/**
+ *
+ */
+int sr_kemi_route(sr_kemi_eng_t *keng, sip_msg_t *msg, int rtype,
+		str *ename, str *edata)
+{
+	flag_t sfbk;
+	int ret;
+
+	sfbk = getsflags();
+	setsflagsval(0);
+	reset_static_buffer();
+	ret = keng->froute(msg, rtype, ename, edata);
+	setsflagsval(sfbk);
+	return ret;
+}
+
+/**
+ *
+ */
+int sr_kemi_ctx_route(sr_kemi_eng_t *keng, run_act_ctx_t *ctx, sip_msg_t *msg,
+		int rtype, str *ename, str *edata)
+{
+	run_act_ctx_t *bctx;
+	int ret;
+
+	bctx = sr_kemi_act_ctx_get();
+	sr_kemi_act_ctx_set(ctx);
+	ret = sr_kemi_route(keng, msg, rtype, ename, edata);
+	sr_kemi_act_ctx_set(bctx);
+	return ret;
 }

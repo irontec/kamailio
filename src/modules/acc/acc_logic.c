@@ -55,7 +55,6 @@ struct acc_enviroment acc_env;
 
 
 #define is_acc_flag_set(_rq,_flag)  (((_flag) != -1) && (isflagset((_rq), (_flag)) == 1))
-#define reset_acc_flag(_rq,_flag)   (resetflag((_rq), (_flag)))
 
 #define is_failed_acc_on(_rq)  is_acc_flag_set(_rq,failed_transaction_flag)
 
@@ -179,7 +178,7 @@ int acc_parse_code(char *p, struct acc_param *param)
 int acc_get_param_value(struct sip_msg *rq, struct acc_param *param)
 {
 	if(param->elem!=NULL) {
-		if(pv_printf_s(rq, param->elem, &param->reason)==-1) {
+		if(pv_printf_s(rq, param->elem, &param->reason)<0) {
 			LM_ERR("Can't get value for %.*s\n", param->reason.len, param->reason.s);
 			return -1;
 		}
@@ -411,27 +410,40 @@ static inline int should_acc_reply(struct sip_msg *req, struct sip_msg *rpl,
 {
 	unsigned int i;
 
+	LM_DBG("probing acc state - code: %d flags: 0x%x\n", code,
+			(req)?req->flags:0);
 	/* negative transactions reported otherwise only if explicitly
 	 * demanded */
-
 	if (code >= 300) {
-		if (!is_failed_acc_on(req)) return 0;
+		if (!is_failed_acc_on(req)) {
+			LM_DBG("failed acc is off\n");
+			return 0;
+		}
 		i = 0;
 		while (failed_filter[i] != 0) {
-			if (failed_filter[i] == code) return 0;
+			if (failed_filter[i] == code) {
+				LM_DBG("acc code in filter: %d\n", code);
+				return 0;
+			}
 			i++;
 		}
+		LM_DBG("failed acc is on\n");
 		return 1;
 	}
 
-	if ( !is_acc_on(req) )
+	if ( !is_acc_on(req) ) {
+		LM_DBG("acc is off\n");
 		return 0;
+	}
 
 	if ( code<200 && !(early_media &&
 				parse_headers(rpl,HDR_CONTENTLENGTH_F, 0) == 0 &&
-				rpl->content_length && get_content_length(rpl) > 0))
+				rpl->content_length && get_content_length(rpl) > 0)) {
+		LM_DBG("early media acc is off\n");
 		return 0;
+	}
 
+	LM_DBG("acc is on\n");
 	return 1; /* seed is through, we will account this reply */
 }
 
@@ -452,7 +464,6 @@ static inline void acc_onreply_in(struct cell *t, struct sip_msg *req,
 }
 
 
-
 /* initiate a report if we previously enabled MC accounting for this t */
 static inline void on_missed(struct cell *t, struct sip_msg *req,
 											struct sip_msg *reply, int code)
@@ -461,6 +472,7 @@ static inline void on_missed(struct cell *t, struct sip_msg *req,
 	int flags_to_reset = 0;
 	int br = -1;
 
+	LM_DBG("preparing to report the record\n");
 	/* get winning branch index, if set */
 	if (t->relayed_reply_branch>=0) {
 		br = t->relayed_reply_branch;
@@ -487,11 +499,10 @@ static inline void on_missed(struct cell *t, struct sip_msg *req,
 	 * forwarding attempt fails; we do not wish to
 	 * report on every attempt; so we clear the flags;
 	 */
-
 	if (is_log_mc_on(req)) {
 		env_set_text( ACC_MISSED, ACC_MISSED_LEN);
 		acc_log_request( req );
-		flags_to_reset |= log_missed_flag;
+		flags_to_reset |= 1 << log_missed_flag;
 	}
 	if (is_db_mc_on(req)) {
 		if(acc_db_set_table_name(req, db_table_mc_data, &db_table_mc)<0) {
@@ -499,7 +510,7 @@ static inline void on_missed(struct cell *t, struct sip_msg *req,
 			return;
 		}
 		acc_db_request( req );
-		flags_to_reset |= db_missed_flag;
+		flags_to_reset |= 1 << db_missed_flag;
 	}
 
 	/* run extra acc engines */
@@ -509,7 +520,7 @@ static inline void on_missed(struct cell *t, struct sip_msg *req,
 	 * These can't be reset in the blocks above, because
 	 * it would skip accounting if the flags are identical
 	 */
-	reset_acc_flag( req, flags_to_reset );
+	resetflags(req, flags_to_reset);
 
 	if (new_uri_bk.len>=0) {
 		req->new_uri = new_uri_bk;

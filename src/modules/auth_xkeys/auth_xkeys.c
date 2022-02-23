@@ -202,6 +202,7 @@ int auth_xkeys_add(sip_msg_t* msg, str *hdr, str *key,
 	auth_xkey_t *itc;
 	char xout[SHA512_DIGEST_STRING_LENGTH];
 	struct lump* anchor;
+	char *p;
 
 	if(_auth_xkeys_list==NULL || *_auth_xkeys_list==NULL) {
 		LM_ERR("no stored keys\n");
@@ -266,8 +267,16 @@ int auth_xkeys_add(sip_msg_t* msg, str *hdr, str *key,
 		LM_ERR("can't get anchor\n");
 		return -1;
 	}
-	if (insert_new_lump_before(anchor, xdata.s, xdata.len, 0) == 0) {
+	p = (char*)pkg_malloc(xdata.len+1);
+	if(p==NULL) {
+		LM_ERR("no more pkg memory\n");
+		return -2;
+	}
+	memcpy(p, xdata.s, xdata.len);
+	p[xdata.len] = '\0';
+	if (insert_new_lump_before(anchor, p, xdata.len, 0) == 0) {
 		LM_ERR("cannot insert the new header [%.*s]\n", hdr->len, hdr->s);
+		pkg_free(p);
 		return -1;
 	}
 	return 0;
@@ -343,7 +352,7 @@ int auth_xkeys_check(sip_msg_t* msg, str *hdr, str *key,
 			}
 			compute_sha256(xout, (u_int8_t*)xdata.s, xdata.len);
 			if(strncasecmp(xout, hbody.s, hbody.len)==0) {
-				LM_DBG("no digest sha256 matched for key [%.*s:%.*s]\n",
+				LM_DBG("digest sha256 matched for key [%.*s:%.*s]\n",
 						key->len, key->s, itc->kname.len, itc->kname.s);
 				return 0;
 			}
@@ -355,7 +364,7 @@ int auth_xkeys_check(sip_msg_t* msg, str *hdr, str *key,
 			}
 			compute_sha384(xout, (u_int8_t*)xdata.s, xdata.len);
 			if(strncasecmp(xout, hbody.s, hbody.len)==0) {
-				LM_DBG("no digest sha384 matched for key [%.*s:%.*s]\n",
+				LM_DBG("digest sha384 matched for key [%.*s:%.*s]\n",
 						key->len, key->s, itc->kname.len, itc->kname.s);
 				return 0;
 			}
@@ -367,7 +376,7 @@ int auth_xkeys_check(sip_msg_t* msg, str *hdr, str *key,
 			}
 			compute_sha512(xout, (u_int8_t*)xdata.s, xdata.len);
 			if(strncasecmp(xout, hbody.s, hbody.len)==0) {
-				LM_DBG("no digest sha512 matched for key [%.*s:%.*s]\n",
+				LM_DBG("digest sha512 matched for key [%.*s:%.*s]\n",
 						key->len, key->s, itc->kname.len, itc->kname.s);
 				return 0;
 			}

@@ -200,13 +200,16 @@ int populate_leg_info( struct dlg_cell *dlg, struct sip_msg *msg,
 	if (leg==DLG_CALLER_LEG) {
 		if((!msg->cseq && (parse_headers(msg,HDR_CSEQ_F,0)<0 || !msg->cseq))
 			|| !msg->cseq->parsed){
-			LM_ERR("bad sip message or missing CSeq hdr :-/\n");
+			LM_ERR("bad sip message or missing CSeq hdr\n");
 			goto error0;
 		}
 		cseq = (get_cseq(msg))->number;
 	} else {
 		/* use the same as in request */
 		cseq = dlg->cseq[DLG_CALLEE_LEG];
+	}
+	if ((leg==DLG_CALLER_LEG) && (cseq.s==NULL || cseq.len<=0)) {
+		LM_DBG("empty CSeq number (leg: %d)\n", leg);
 	}
 
 	/* extract the contact address */
@@ -221,6 +224,9 @@ int populate_leg_info( struct dlg_cell *dlg, struct sip_msg *msg,
 		goto error0;
 	}
 	contact = ((contact_body_t *)msg->contact->parsed)->contacts->uri;
+	if(contact.s==NULL || contact.len<=0) {
+		LM_DBG("empty contact uri (leg: %d)\n", leg);
+	}
 
 	/* extract the record-route addresses */
 	if (leg==DLG_CALLER_LEG) {
@@ -250,10 +256,10 @@ int populate_leg_info( struct dlg_cell *dlg, struct sip_msg *msg,
 
 	LM_DBG("leg(%d) route_set [%.*s], contact [%.*s], cseq [%.*s]"
 			" and bind_addr [%.*s]\n",
-		leg, rr_set.len, rr_set.s, contact.len, contact.s,
-		cseq.len, cseq.s,
+		leg, rr_set.len, ZSW(rr_set.s), contact.len, ZSW(contact.s),
+		cseq.len, ZSW(cseq.s),
 		msg->rcv.bind_address->sock_str.len,
-		msg->rcv.bind_address->sock_str.s);
+		ZSW(msg->rcv.bind_address->sock_str.s));
 
 	if (dlg_set_leg_info( dlg, tag, &rr_set, &contact, &cseq, leg)!=0) {
 		LM_ERR("dlg_set_leg_info failed (leg %d)\n", leg);
@@ -431,6 +437,13 @@ static void dlg_onreply(struct cell* t, int type, struct tmcb_params *param)
 	dlg = dlg_get_by_iuid(iuid);
 	if(dlg==0)
 		return;
+
+	if (rpl != FAKED_REPLY) {
+		if(parse_headers(rpl, HDR_EOH_F, 0) < 0) {
+			LM_ERR("failed to parse the reply headers\n");
+			goto done_early;
+		}
+	}
 
 	unref = 0;
 	if (type & (TMCB_RESPONSE_IN|TMCB_ON_FAILURE)) {
@@ -755,8 +768,10 @@ void dlg_onreq(struct cell* t, int type, struct tmcb_params *param)
 		}
 	}
 	if (dlg==NULL) {
-		if((req->flags&dlg_flag_mask)!=dlg_flag_mask)
+		if((dlg_flag_mask==0) || (req->flags&dlg_flag_mask)!=dlg_flag_mask) {
+			LM_DBG("flag not set for creating a new dialog\n");
 			return;
+		}
 		LM_DBG("dialog creation on config flag\n");
 		dlg_new_dialog(req, t, 1);
 		dlg = dlg_get_ctx_dialog();
@@ -836,6 +851,11 @@ int dlg_new_dialog(sip_msg_t *req, struct cell *t, const int run_initial_cbs)
 
 	if(req->first_line.u.request.method_value != METHOD_INVITE)
 		return -1;
+
+	if(parse_headers(req, HDR_EOH_F, 0) < 0) {
+		LM_ERR("failed to parse the request headers\n");
+		return -1;
+	}
 
     if(pre_match_parse( req, &callid, &ftag, &ttag, 0)<0) {
         LM_WARN("pre-matching failed\n");
@@ -1408,7 +1428,7 @@ void dlg_onroute(struct sip_msg* req, str *route_params, void *param)
 				dlg->tag[DLG_CALLER_LEG].len, dlg->tag[DLG_CALLER_LEG].s,
 				dlg->tag[DLG_CALLEE_LEG].len, dlg->tag[DLG_CALLEE_LEG].s);
 		} else if (ret > 0) {
-			LM_WARN("inconsitent dlg timer data on dlg %p [%u:%u] "
+			LM_WARN("inconsistent dlg timer data on dlg %p [%u:%u] "
 				"with clid '%.*s' and tags '%.*s' '%.*s'\n",
 				dlg, dlg->h_entry, dlg->h_id,
 				dlg->callid.len, dlg->callid.s,
@@ -1431,7 +1451,7 @@ void dlg_onroute(struct sip_msg* req, str *route_params, void *param)
 		goto done;
 	}
 
-	if ( (event==DLG_EVENT_REQ || event==DLG_EVENT_REQACK)
+	if ( (event==DLG_EVENT_REQ || event==DLG_EVENT_REQACK || event==DLG_EVENT_REQPRACK)
 	&& (new_state==DLG_STATE_CONFIRMED || new_state==DLG_STATE_EARLY)) {
 
 		timeout = get_dlg_timeout(req);

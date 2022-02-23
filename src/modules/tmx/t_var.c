@@ -34,6 +34,7 @@
 struct _pv_tmx_data {
 	unsigned int index;
 	unsigned int label;
+	int branch;
 	struct sip_msg msg;
 	struct sip_msg *tmsgp;
 	char *buf;
@@ -175,7 +176,8 @@ int pv_t_update_rpl(struct sip_msg *msg)
 	if(t->uac[branch].reply==NULL || t->uac[branch].reply==FAKED_REPLY)
 		return 1;
 
-	if (_pv_trpl.label == t->label && _pv_trpl.index == t->hash_index)  
+	if (_pv_trpl.label == t->label && _pv_trpl.index == t->hash_index
+			&& _pv_trpl.branch == branch)
 		return 0;
 
 	/* make a copy */
@@ -188,6 +190,7 @@ int pv_t_update_rpl(struct sip_msg *msg)
 		_pv_trpl.tmsgp = NULL;
 		_pv_trpl.index = 0;
 		_pv_trpl.label = 0;
+		_pv_trpl.branch = 0;
 		_pv_trpl.buf_size = t->uac[branch].reply->len+1;
 		_pv_trpl.buf = (char*)pkg_malloc(_pv_trpl.buf_size*sizeof(char));
 		if(_pv_trpl.buf==NULL)
@@ -207,6 +210,7 @@ int pv_t_update_rpl(struct sip_msg *msg)
 	_pv_trpl.tmsgp = t->uac[branch].reply;
 	_pv_trpl.index = t->hash_index;
 	_pv_trpl.label = t->label;
+	_pv_trpl.branch = branch;
 
 	if(pv_t_copy_msg(t->uac[branch].reply, &_pv_trpl.msg)!=0)
 	{
@@ -216,6 +220,7 @@ int pv_t_update_rpl(struct sip_msg *msg)
 		_pv_trpl.tmsgp = NULL;
 		_pv_trpl.index = 0;
 		_pv_trpl.label = 0;
+		_pv_trpl.branch = 0;
 		return -1;
 	}
 
@@ -677,6 +682,8 @@ int pv_parse_t_name(pv_spec_p sp, str *in)
 		case 12:
 			if(strncmp(in->s, "branch_index", 12)==0)
 				sp->pvp.pvn.u.isname.name.n = 4;
+			else if(strncmp(in->s, "reply_reason", 12)==0)
+				sp->pvp.pvn.u.isname.name.n = 10;
 			else goto error;
 			break;
 		default:
@@ -708,6 +715,8 @@ int pv_get_t(struct sip_msg *msg,  pv_param_t *param,
 			return pv_get_tm_reply_code(msg, param, res);
 		case 4:
 			return pv_get_tm_branch_idx(msg, param, res);
+		case 10:
+			return pv_get_tm_reply_reason(msg, param, res);
 	}
 
 	t = _tmx_tmb.t_gett();

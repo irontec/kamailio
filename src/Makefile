@@ -348,7 +348,7 @@ modules-cfg modules-list modules-lst:
 	rm -f modules.lst
 	$(MAKE) modules.lst
 
-ifneq ($(wildcard .git),)
+ifneq ($(wildcard ../.git),)
 # if .git/ exists
 repo_ver=$(shell  RV=`git rev-parse --verify --short=6 HEAD 2>/dev/null`;\
 					[ -n "$$RV" ] && \
@@ -358,7 +358,7 @@ repo_ver=$(shell  RV=`git rev-parse --verify --short=6 HEAD 2>/dev/null`;\
 						RV="$$RV"-dirty; echo "$$RV")
 repo_hash=$(subst -dirty,,$(repo_ver))
 repo_state=$(subst %-dirty,dirty,$(findstring -dirty,$(repo_ver)))
-autover_h_dep=.git $(filter-out $(auto_gen), $(sources)) core/cfg.y core/cfg.lex Makefile
+autover_h_dep=../.git $(filter-out $(auto_gen), $(sources)) core/cfg.y core/cfg.lex Makefile
 else
 # else if .git/ does not exist
 repo_ver=
@@ -1018,6 +1018,51 @@ install_initd_centos install-initd-centos:
 	/usr/sbin/useradd -r -g $(NAME) -s /bin/false -c "Kamailio Daemon" \
                   -d /var/run/$(NAME) $(NAME)
 	chown $(NAME):$(NAME) /var/run/$(NAME)
+
+.PHONY: install_systemd_debian install-systemd-debian
+install_systemd_debian install-systemd-debian:
+	sed -e "s#ExecStart=/usr/sbin/kamailio#ExecStart=$(bin_prefix)/$(bin_dir)$(NAME)#g" \
+		-e "s#Description=Kamailio#Description=$(NAME)#g" \
+		-e "s#/var/run/kamailio/kamailio.pid#/var/run/$(NAME)/$(NAME).pid#g" \
+		-e "s#EnvironmentFile=-/etc/default/kamailio#EnvironmentFile=-/etc/default/$(NAME)#g" \
+		-e "s#CFGFILE=/etc/kamailio/kamailio.cfg#CFGFILE=$(cfg_prefix)/$(cfg_dir)$(NAME).cfg#g" \
+		< ../pkg/kamailio/deb/debian/kamailio.service \
+		> /etc/systemd/system/$(NAME).service
+	sed -e "s#RUN_KAMAILIO=no#RUN_KAMAILIO=yes#g" \
+		< ../pkg/kamailio/deb/debian/kamailio.default \
+		> /etc/default/$(NAME)
+	mkdir -p /var/run/$(NAME)
+	adduser --quiet --system --group --disabled-password \
+        --shell /bin/false --gecos "$(NAME)" \
+        --home /var/run/$(NAME) $(NAME)
+	chown $(NAME):$(NAME) /var/run/$(NAME)
+	echo "D /run/$(NAME) 0700 $(NAME) $(NAME) -" > /etc/tmpfiles.d/$(NAME).conf
+	@echo
+	@echo "* to enable kamailio service run:"
+	@echo "    systemctl enable kamailio"
+	@echo "    systemctl daemon-reload"
+.PHONY: install_systemd_centos install-systemd-centos
+install_systemd_centos install-systemd-centos:
+	sed -e "s#ExecStart=/usr/sbin/kamailio#ExecStart=$(bin_prefix)/$(bin_dir)$(NAME)#g" \
+		-e "s#Description=Kamailio#Description=$(NAME)#g" \
+		-e "s#/var/run/kamailio/kamailio.pid#/var/run/$(NAME)/$(NAME).pid#g" \
+		-e "s#EnvironmentFile=-/etc/sysconfig/kamailio#EnvironmentFile=-/etc/sysconfig/$(NAME)#g" \
+		-e "s#CFGFILE=/etc/kamailio/kamailio.cfg#CFGFILE=$(cfg_prefix)/$(cfg_dir)$(NAME).cfg#g" \
+		< ../pkg/kamailio/obs/kamailio.service \
+		> /etc/systemd/system/$(NAME).service
+	cp ../pkg/kamailio/obs/kamailio.sysconfig \
+		/etc/sysconfig/$(NAME)
+	mkdir -p /var/run/$(NAME)
+	chmod 0700 /var/run/$(NAME)
+	groupadd --system $(NAME)
+	useradd $(NAME) --system --shell /sbin/nologin -g $(NAME) --home /var/run/$(NAME)
+	chown $(NAME):$(NAME) /var/run/$(NAME)
+	echo "D /run/$(NAME) 0700 $(NAME) $(NAME) -" > /etc/tmpfiles.d/$(NAME).conf
+	@echo
+	@echo "* to enable kamailio service run:"
+	@echo "    systemctl daemon-reload"
+	@echo "    systemctl enable kamailio"
+	@echo "    systemctl start kamailio"
 
 .PHONY: dbschema
 dbschema:

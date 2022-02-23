@@ -1,0 +1,28 @@
+diff --git a/src/modules/rtpengine/rtpengine.c b/src/modules/rtpengine/rtpengine.c
+index 3d4d17718a..b3845ef3ae 100644
+--- a/src/modules/rtpengine/rtpengine.c
++++ b/src/modules/rtpengine/rtpengine.c
+@@ -2588,10 +2588,22 @@ select_rtpp_node_new(str callid, str viabranch, int do_test, struct rtpp_node **
+ 	struct rtpp_node* node;
+ 	unsigned i, sum, sumcut, weight_sum;
+ 	int was_forced = 0;
++	int skip = 0;
++
++	/* Skip n characters in callid for hash selection */
++	if (strncmp(callid.s, "trunks-inbound-", 15) == 0) {
++		skip = 15;
++	} else if (strncmp(callid.s, "trunks-outbound-", 16) == 0) {
++		skip = 16;
++	} else if (strncmp(callid.s, "users-inbound-", 14) == 0) {
++		skip = 14;
++	} else if (strncmp(callid.s, "users-outbound-", 15) == 0) {
++		skip = 15;
++	}
+ 
+ 	/* XXX Use quick-and-dirty hashing algo */
+ 	sum = 0;
+-	for(i = 0; i < callid.len; i++)
++	for(i = skip; i < callid.len; i++)
+ 		sum += callid.s[i];
+ 	sum &= 0xff;
+ 

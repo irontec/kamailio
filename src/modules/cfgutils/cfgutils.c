@@ -705,7 +705,8 @@ static int cfg_lock_helper(str *lkey, int mode)
 	unsigned int pos;
 
 	if(_cfg_lock_set==NULL) {
-		LM_ERR("lock set not initialized (attempt to do op: %d on: %.*s)\n",
+		LM_ERR("lock set not initialized (attempt to do op: %d on: %.*s) -"
+				" see param lock_set_size\n",
 				mode, lkey->len, lkey->s);
 		return -1;
 	}
@@ -801,11 +802,10 @@ static int w_check_route_exists(struct sip_msg *msg, char *route)
 static int w_route_exists(struct sip_msg *msg, char *route)
 {
 	struct run_act_ctx ctx;
-	int newroute, backup_rt, ret;
+	int newroute, ret;
 	str s;
 
-	if (fixup_get_svalue(msg, (gparam_p) route, &s) != 0)
-	{
+	if (fixup_get_svalue(msg, (gparam_p) route, &s) != 0) {
 			LM_ERR("invalid route parameter\n");
 			return -1;
 	}
@@ -814,12 +814,8 @@ static int w_route_exists(struct sip_msg *msg, char *route)
 	if (newroute<0) {
 		return -1;
 	}
-	backup_rt = get_route_type();
-	set_route_type(REQUEST_ROUTE);
-
 	init_run_actions_ctx(&ctx);
-	ret = run_top_route(main_rt.rlist[newroute], msg, &ctx);
-	set_route_type(backup_rt);
+	ret=run_actions(&ctx, main_rt.rlist[newroute], msg);
 	if (ctx.run_flags & EXIT_R_F) {
 		return 0;
 	}
@@ -905,6 +901,7 @@ static void mod_destroy(void)
 	{
 		lock_set_destroy(_cfg_lock_set);
 		lock_set_dealloc(_cfg_lock_set);
+		_cfg_lock_set = NULL;
 	}
 }
 

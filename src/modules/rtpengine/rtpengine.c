@@ -450,7 +450,8 @@ static int is_queried_node(struct rtpp_node *node, struct rtpp_node **queried_no
 int rtpengine_delete_node(struct rtpp_node *rtpp_node)
 {
 	rtpp_node->rn_displayed = 0;
-	rtpp_node->rn_disabled = RTPENGINE_MAX_RECHECK_TICKS;
+	rtpp_node->rn_disabled = 1;
+	rtpp_node->rn_recheck_ticks = RTPENGINE_MAX_RECHECK_TICKS;
 
 	return 1;
 }
@@ -1926,29 +1927,27 @@ static int parse_flags(struct ng_flags_parse *ng_flags, struct sip_msg *msg, enu
 		/* check for specially handled items */
 		switch (key.len) {
 			case 3:
-				if (str_eq(&key, "RTP")) {
+				if (str_eq(&key, "RTP") && !val.s) {
 					ng_flags->transport |= 0x100;
 					ng_flags->transport &= ~0x001;
 				}
-				else if (str_eq(&key, "AVP")) {
+				else if (str_eq(&key, "AVP") && !val.s) {
 					ng_flags->transport |= 0x100;
 					ng_flags->transport &= ~0x002;
 				}
 				else if (str_eq(&key, "TOS") && val.s)
 					bencode_dictionary_add_integer(ng_flags->dict, "TOS", atoi(val.s));
-				else if (str_eq(&key, "delete-delay") && val.s)
-					bencode_dictionary_add_integer(ng_flags->dict, "delete delay", atoi(val.s));
 				else
 					goto generic;
 				goto next;
 				break;
 
 			case 4:
-				if (str_eq(&key, "SRTP"))
+				if (str_eq(&key, "SRTP") && !val.s)
 					ng_flags->transport |= 0x101;
-				else if (str_eq(&key, "AVPF"))
+				else if (str_eq(&key, "AVPF") && !val.s)
 					ng_flags->transport |= 0x102;
-				else if (str_eq(&key, "DTLS"))
+				else if (str_eq(&key, "DTLS") && !val.s)
 					ng_flags->transport |= 0x104;
 				else
 					goto generic;
@@ -1965,7 +1964,7 @@ static int parse_flags(struct ng_flags_parse *ng_flags, struct sip_msg *msg, enu
 				break;
 
 			case 7:
-				if (str_eq(&key, "RTP/AVP"))
+				if (str_eq(&key, "RTP/AVP") && !val.s)
 					ng_flags->transport = 0x100;
 				else if (str_eq(&key, "call-id")) {
 					err = "missing value";
@@ -1981,9 +1980,9 @@ static int parse_flags(struct ng_flags_parse *ng_flags, struct sip_msg *msg, enu
 			case 8:
 				if (str_eq(&key, "internal") || str_eq(&key, "external"))
 					bencode_list_add_str(ng_flags->direction, &key);
-				else if (str_eq(&key, "RTP/AVPF"))
+				else if (str_eq(&key, "RTP/AVPF") && !val.s)
 					ng_flags->transport = 0x102;
-				else if (str_eq(&key, "RTP/SAVP"))
+				else if (str_eq(&key, "RTP/SAVP") && !val.s)
 					ng_flags->transport = 0x101;
 				else if (str_eq(&key, "from-tag")) {
 					err = "missing value";
@@ -1997,7 +1996,7 @@ static int parse_flags(struct ng_flags_parse *ng_flags, struct sip_msg *msg, enu
 				break;
 
 			case 9:
-				if (str_eq(&key, "RTP/SAVPF"))
+				if (str_eq(&key, "RTP/SAVPF") && !val.s)
 					ng_flags->transport = 0x103;
 				else if (str_eq(&key, "direction"))
 					bencode_list_add_str(ng_flags->direction, &val);
@@ -2051,10 +2050,12 @@ static int parse_flags(struct ng_flags_parse *ng_flags, struct sip_msg *msg, enu
 					*op = OP_ANSWER;
 					goto next;
 				}
+				else if (str_eq(&key, "delete-delay") && val.s)
+					bencode_dictionary_add_integer(ng_flags->dict, "delete delay", atoi(val.s));
 				break;
 
 			case 16:
-				if (str_eq(&key, "UDP/TLS/RTP/SAVP"))
+				if (str_eq(&key, "UDP/TLS/RTP/SAVP") && !val.s)
 					ng_flags->transport = 0x104;
 				else
 					goto generic;
@@ -2062,7 +2063,7 @@ static int parse_flags(struct ng_flags_parse *ng_flags, struct sip_msg *msg, enu
 				break;
 
 			case 17:
-				if (str_eq(&key, "UDP/TLS/RTP/SAVPF"))
+				if (str_eq(&key, "UDP/TLS/RTP/SAVPF") && !val.s)
 					ng_flags->transport = 0x106;
 				else
 					goto generic;
@@ -2441,7 +2442,7 @@ send_rtpp_command(struct rtpp_node *node, bencode_item_t *dict, int *outlen)
 	static char buf[0x10000];
 	struct pollfd fds[1];
 	struct iovec *v;
-	str out = STR_NULL;
+	str cmd = STR_NULL;
 
 	v = bencode_iovec(dict, &vcnt, 1, 0);
 	if (!v) {
@@ -2500,24 +2501,27 @@ send_rtpp_command(struct rtpp_node *node, bencode_item_t *dict, int *outlen)
 		}
 		v[0].iov_base = gencookie();
 		v[0].iov_len = strlen(v[0].iov_base);
-        rtpengine_retr = cfg_get(rtpengine,rtpengine_cfg,rtpengine_retr);
+		rtpengine_retr = cfg_get(rtpengine,rtpengine_cfg,rtpengine_retr);
 		for (i = 0; i < rtpengine_retr; i++) {
 			do {
 				len = writev(rtpp_socks[node->idx], v, vcnt + 1);
 			} while (len == -1 && (errno == EINTR || errno == ENOBUFS));
 			if (len <= 0) {
-				bencode_get_str(bencode_dictionary_get(dict, "command"), &out);
-				LM_ERR("can't send command \"%.*s\" to RTP proxy <%s>\n", out.len, out.s, node->rn_url.s);
+				bencode_get_str(bencode_dictionary_get(dict, "command"), &cmd);
+				LM_ERR("can't send command \"%.*s\" to RTP proxy <%s>\n",
+					cmd.len, cmd.s, node->rn_url.s);
 				goto badproxy;
 			}
-            rtpengine_tout_ms = cfg_get(rtpengine,rtpengine_cfg,rtpengine_tout_ms);
+			rtpengine_tout_ms = cfg_get(rtpengine,rtpengine_cfg,rtpengine_tout_ms);
 			while ((poll(fds, 1, rtpengine_tout_ms) == 1) &&
 				(fds[0].revents & POLLIN) != 0) {
 				do {
 					len = recv(rtpp_socks[node->idx], buf, sizeof(buf)-1, 0);
 				} while (len == -1 && errno == EINTR);
 				if (len <= 0) {
-					LM_ERR("can't read reply from RTP proxy <%s>\n", node->rn_url.s);
+					bencode_get_str(bencode_dictionary_get(dict, "command"), &cmd);
+					LM_ERR("can't read reply for command \"%.*s\" from RTP proxy <%s>\n",
+						cmd.len, cmd.s, node->rn_url.s);
 					goto badproxy;
 				}
 				if (len >= (v[0].iov_len - 1) &&
@@ -2534,7 +2538,9 @@ send_rtpp_command(struct rtpp_node *node, bencode_item_t *dict, int *outlen)
 			}
 		}
 		if (i == rtpengine_retr) {
-			LM_ERR("timeout waiting reply from RTP proxy <%s>\n", node->rn_url.s);
+			bencode_get_str(bencode_dictionary_get(dict, "command"), &cmd);
+			LM_ERR("timeout waiting reply for command \"%.*s\" from RTP proxy <%s>\n",
+				cmd.len, cmd.s, node->rn_url.s);
 			goto badproxy;
 		}
 	}
@@ -3212,6 +3218,7 @@ rtpengine_manage(struct sip_msg *msg, const char *flags)
 {
 	int method;
 	int nosdp;
+	tm_cell_t *t = NULL;
 
 	if (msg->cseq==NULL && ((parse_headers(msg, HDR_CSEQ_F, 0)==-1) ||
 	   (msg->cseq==NULL)))
@@ -3241,9 +3248,12 @@ rtpengine_manage(struct sip_msg *msg, const char *flags)
 			return rtpengine_offer_answer(msg, flags, OP_OFFER, 0);
 		if(method==METHOD_INVITE && nosdp==0) {
 			msg->msg_flags |= FL_SDP_BODY;
-			if(tmb.t_gett!=NULL && tmb.t_gett()!=NULL
-					&& tmb.t_gett()!=T_UNDEFINED)
-				tmb.t_gett()->uas.request->msg_flags |= FL_SDP_BODY;
+			if(tmb.t_gett!=NULL) {
+				t = tmb.t_gett();
+				if(t!=NULL && t!=T_UNDEFINED && t->uas.request!=NULL) {
+					t->uas.request->msg_flags |= FL_SDP_BODY;
+				}
+			}
 			if(route_type==FAILURE_ROUTE)
 				return rtpengine_delete(msg, flags);
 			return rtpengine_offer_answer(msg, flags, OP_OFFER, 0);

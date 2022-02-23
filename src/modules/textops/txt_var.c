@@ -45,13 +45,13 @@ int tr_txt_eval_re(struct sip_msg *msg, tr_param_t *tp, int subtype,
 	struct subst_expr *se = NULL;
 	int nmatches;
 	str* result;
-#define TR_TXT_BUF_SIZE	2048
+#define TR_TXT_BUF_SIZE	8192
 	static char tr_txt_buf[TR_TXT_BUF_SIZE];
 	pv_value_t v;
 
 	if(val==NULL || (!(val->flags&PV_VAL_STR)) || val->rs.len<=0)
 		return -1;
-	
+
 	switch(subtype)
 	{
 		case TR_TXT_RE_SUBST:
@@ -215,6 +215,7 @@ char* tr_txt_parse_re(str *in, trans_t *t)
 				LM_ERR("no more private memory!\n");
 				goto error;
 			}
+			memset(tp, 0, sizeof(tr_param_t));
 
 			se=subst_parser(&tok);
 

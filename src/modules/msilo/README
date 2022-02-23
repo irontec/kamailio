@@ -14,8 +14,6 @@ Daniel-Constantin Mierla
 
    <miconda@gmail.com>
 
-Edited by
-
 Juha Heinanen
 
    <jh@tutpro.com>
@@ -510,7 +508,7 @@ modparam("msilo", "expire_time", 36000)
    module keeps each request send by itself for a new online user and if
    the reply is 2xx then the message is deleted from database.
 
-   Default value is “30”.
+   Default value is “60”.
 
    Example 1.21. Set the “check_time” parameter
 ...
@@ -537,7 +535,7 @@ modparam("msilo", "send_time", 60)
    Number of “check_time” cycles when to check if there are expired
    messages in database.
 
-   Default value is “5”.
+   Default value is “10”.
 
    Example 1.23. Set the “clean_period” parameter
 ...
@@ -774,12 +772,6 @@ modparam("msilo","contact_hdr","Contact: registrar@192.168.1.2:5060;msilo=yes\r\
 n")
 modparam("msilo","content_type_hdr","Content-Type: text/plain\r\n")
 modparam("msilo","offline_message","*** User $rU is offline!")
-
-# -- tm params --
-
-modparam("tm", "fr_timer", 10 )
-modparam("tm", "fr_inv_timer", 15 )
-modparam("tm", "wt_timer", 10 )
 
 
 route{

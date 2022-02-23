@@ -10,3 +10,6 @@
 010_dialog_profile_end.patch
 011_pua_trying_presentity.patch
 012_t_suspend_memleak.patch
+013_rtpengine_callid_skip_proxy_tag.patch
+014_uac_replace_display_name_fix.patch
+015_rtpengine_delayed_initialization.patch

@@ -88,6 +88,8 @@ int dp_fetch_rows = 1000;
 int dp_match_dynamic = 0;
 int dp_append_branch = 1;
 
+static time_t *dp_rpc_reload_time = NULL;
+
 static param_export_t mod_params[]={
 	{ "db_url",			PARAM_STR,	&dp_db_url },
 	{ "table_name",		PARAM_STR,	&dp_table_name },
@@ -115,7 +117,7 @@ static cmd_export_t cmds[]={
 		ANY_ROUTE},
 	{"dp_match",(cmd_function)w_dp_match,	2,	fixup_igp_spve,
 		fixup_free_igp_spve, ANY_ROUTE},
-	{"dp_replace",(cmd_function)w_dp_replace,	2,	dp_replace_fixup,
+	{"dp_replace",(cmd_function)w_dp_replace,	3,	dp_replace_fixup,
 		dp_replace_fixup_free, ANY_ROUTE},
 	{0,0,0,0,0,0}
 };
@@ -187,6 +189,13 @@ static int mod_init(void)
 		return -1;
 	}
 
+	dp_rpc_reload_time = shm_malloc(sizeof(time_t));
+	if(dp_rpc_reload_time == NULL) {
+		SHM_MEM_ERROR;
+		return -1;
+	}
+	*dp_rpc_reload_time = 0;
+
 	return 0;
 }
 
@@ -203,6 +212,10 @@ static void mod_destroy(void)
 	if(default_par2){
 		shm_free(default_par2);
 		default_par2 = NULL;
+	}
+	if(dp_rpc_reload_time!=NULL) {
+		shm_free(dp_rpc_reload_time);
+		dp_rpc_reload_time = 0;
 	}
 	destroy_data();
 }
@@ -465,8 +478,9 @@ static int dp_replace_helper(sip_msg_t *msg, int dpid, str *input,
 		pv_spec_t *pvd)
 {
 	dpl_id_p idp;
-	str output = STR_NULL;
+	str tmp = STR_NULL;
 	str attrs = STR_NULL;
+	str *output = NULL;
 	str *outattrs = NULL;
 
 	if ((idp = select_dpid(dpid)) ==0) {
@@ -475,16 +489,19 @@ static int dp_replace_helper(sip_msg_t *msg, int dpid, str *input,
 	}
 
 	outattrs = (!attr_pvar)?NULL:&attrs;
-	if (dp_translate_helper(msg, input, &output, idp, outattrs)!=0) {
+	output = (!pvd)?NULL:&tmp;
+	if (dp_translate_helper(msg, input, output, idp, outattrs)!=0) {
 		LM_DBG("could not translate %.*s "
 				"with dpid %i\n", input->len, input->s, idp->dp_id);
 		return -1;
 	}
-	LM_DBG("input %.*s with dpid %i => output %.*s\n",
-			input->len, input->s, idp->dp_id, output.len, output.s);
+	if (output) {
+		LM_DBG("input %.*s with dpid %i => output %.*s\n",
+				input->len, input->s, idp->dp_id, output->len, output->s);
+	}
 
 	/* set the output */
-	if (dp_update(msg, pvd, &output, outattrs) !=0){
+	if (dp_update(msg, pvd, output, outattrs) !=0){
 		LM_ERR("cannot set the output\n");
 		return -1;
 	}
@@ -603,6 +620,17 @@ static const char* dialplan_rpc_reload_doc[2] = {
  */
 static void dialplan_rpc_reload(rpc_t* rpc, void* ctx)
 {
+	if(dp_rpc_reload_time==NULL) {
+		LM_ERR("not ready for reload\n");
+		rpc->fault(ctx, 500, "Not ready for reload");
+		return;
+	}
+	if(*dp_rpc_reload_time!=0 && *dp_rpc_reload_time > time(NULL) - 5) {
+		LM_ERR("ongoing reload\n");
+		rpc->fault(ctx, 500, "ongoing reload");
+		return;
+	}
+	*dp_rpc_reload_time = time(NULL);
 	if (dp_connect_db() < 0) {
 		LM_ERR("failed to reload rules fron database (db connect)\n");
 		rpc->fault(ctx, 500, "DB Connection Error");

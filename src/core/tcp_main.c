@@ -1136,18 +1136,31 @@ again:
 	su2ip_addr(&ip, &my_name);
 find_socket:
 #ifdef USE_TLS
-	if (unlikely(type==PROTO_TLS))
+	if (unlikely(type==PROTO_TLS)) {
 		*res_si=find_si(&ip, 0, PROTO_TLS);
-	else
-#endif
+	} else {
 		*res_si=find_si(&ip, 0, PROTO_TCP);
-	
+	}
+#else
+	*res_si=find_si(&ip, 0, PROTO_TCP);
+#endif
+
 	if (unlikely(*res_si==0)){
 		LM_WARN("%s: could not find corresponding"
 				" listening socket for %s, using default...\n",
 					su2a(server, sizeof(*server)), ip_addr2a(&ip));
+#ifdef USE_TLS
+		if (unlikely(type==PROTO_TLS)) {
+			if (server->s.sa_family==AF_INET) *res_si=sendipv4_tls;
+			else *res_si=sendipv6_tls;
+		} else {
+			if (server->s.sa_family==AF_INET) *res_si=sendipv4_tcp;
+			else *res_si=sendipv6_tcp;
+		}
+#else
 		if (server->s.sa_family==AF_INET) *res_si=sendipv4_tcp;
 		else *res_si=sendipv6_tcp;
+#endif
 	}
 	*res_local_addr=*from;
 	return s;
@@ -3864,15 +3877,15 @@ inline static int send2child(struct tcp_connection* tcpconn)
 			}
 		}
 	}
-	
+
 	tcp_children[idx].busy++;
 	tcp_children[idx].n_reqs++;
 	if (unlikely(min_busy)){
 		LM_DBG("WARNING: no free tcp receiver, "
-				"connection passed to the least busy one (%d)\n",
-				min_busy);
+				"connection passed to the least busy one (idx:%d busy:%d)\n",
+				idx, min_busy);
 	}
-	LM_DBG("selected tcp worker %d %d(%ld) for activity on [%s], %p\n",
+	LM_DBG("selected tcp worker idx:%d proc:%d pid:%ld for activity on [%s], %p\n",
 			idx, tcp_children[idx].proc_no, (long)tcp_children[idx].pid,
 			(tcpconn->rcv.bind_address)?tcpconn->rcv.bind_address->sock_str.s:"",
 			tcpconn);
@@ -3886,7 +3899,7 @@ inline static int send2child(struct tcp_connection* tcpconn)
 	/* process tcp readers requests */
 	while(unlikely((tcpconn->state != S_CONN_BAD &&
 					(handle_tcp_child(&tcp_children[idx], -1)>0))));
-	
+
 	/* the above possible pending requests might have included a
 	   command to close this tcpconn (e.g. CONN_ERROR, CONN_EOF).
 	   In this case the fd is already closed here (and possible

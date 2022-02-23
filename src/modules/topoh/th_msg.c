@@ -108,17 +108,25 @@ int th_get_param_value(str *in, str *name, str *value)
 
 int th_get_uri_param_value(str *uri, str *name, str *value)
 {
-	struct sip_uri puri;
+	sip_uri_t puri;
 
 	memset(value, 0, sizeof(str));
 	if(parse_uri(uri->s, uri->len, &puri)<0)
 		return -1;
+
+	LM_DBG("uri params: [%.*s] - sip uri params: [%.*s]\n",
+			puri.params.len, (puri.params.s)?puri.params.s:"",
+			puri.sip_params.len, (puri.sip_params.s)?puri.sip_params.s:"");
+
+	if(puri.sip_params.len>0)
+		return th_get_param_value(&puri.sip_params, name, value);
+
 	return th_get_param_value(&puri.params, name, value);
 }
 
 int th_get_uri_type(str *uri, int *mode, str *value)
 {
-	struct sip_uri puri;
+	sip_uri_t puri;
 	int ret;
 	str r2 = {"r2", 2};
 
@@ -267,6 +275,11 @@ int th_mask_contact(sip_msg_t *msg)
 	}
 
 	c = ((contact_body_t*)msg->contact->parsed)->contacts;
+	if(c == NULL)
+	{
+		LM_ERR("invalid contact header\n");
+		return -1;
+	}
 	in = c->uri;
 
 	out.s = th_mask_encode(in.s, in.len, &th_uri_prefix, &out.len);
@@ -405,13 +418,18 @@ int th_unmask_via(sip_msg_t *msg, str *cookie)
 					LM_ERR("cannot find param in via %d\n", i);
 					return -1;
 				}
-				if(i==2)
+				if(vp->value.len <= th_vparam_prefix.len) {
+					LM_ERR("invalid param len in via %d\n", i);
+					return -1;
+				}
+				if(i==2) {
 					out.s = th_mask_decode(vp->value.s, vp->value.len,
 							&th_vparam_prefix, CRLF_LEN+1, &out.len);
-				else
+				} else {
 					out.s = th_mask_decode(vp->value.s, vp->value.len,
 							&th_vparam_prefix, 0, &out.len);
-				if(out.s==NULL)
+				}
+				if(out.s==NULL || out.len<=0)
 				{
 					LM_ERR("cannot decode via %d\n", i);
 					return -1;
@@ -541,6 +559,10 @@ int th_unmask_callid_str(str *icallid, str *ocallid)
 	}
 	out.s = th_mask_decode(icallid->s, icallid->len,
 					&th_callid_prefix, 0, &out.len);
+	if(out.s == NULL) {
+		LM_ERR("failed to decode call-id\n");
+		return -2;
+	}
 	if(out.len>=TH_CALLID_SIZE) {
 		pkg_free(out.s);
 		LM_ERR("not enough callid buf size (needed %d)\n", out.len);
@@ -693,7 +715,7 @@ int th_unmask_route(sip_msg_t *msg)
 						(strncasecmp(rr->nameaddr.uri.s,th_uri_prefix.s,
 									th_uri_prefix.len)!=0)))
 				{
-					LM_DBG("rr %d is not encoded: [%.*s]", i,
+					LM_DBG("rr %d is not encoded: [%.*s] - missing prefix\n", i,
 							rr->nameaddr.uri.len, rr->nameaddr.uri.s);
 					rr = rr->next;
 					continue;
@@ -701,7 +723,12 @@ int th_unmask_route(sip_msg_t *msg)
 
 				if(th_get_uri_param_value(&rr->nameaddr.uri, &th_uparam_name,
 							&eval)<0 || eval.len<=0)
-					return -1;
+				{
+					LM_DBG("rr %d is not encoded: [%.*s] - missing param\n", i,
+							rr->nameaddr.uri.len, rr->nameaddr.uri.s);
+					rr = rr->next;
+					continue;
+				}
 
 				out.s = th_mask_decode(eval.s, eval.len,
 							&th_uparam_prefix, 0, &out.len);
@@ -749,14 +776,19 @@ int th_unmask_ruri(sip_msg_t *msg)
 	}
 
 	if(th_get_uri_param_value(&REQ_LINE(msg).uri, &th_uparam_name, &eval)<0
-			|| eval.len<=0)
+			|| eval.len<=0) {
+		LM_DBG("no uri param [%.*s] in [%.*s]\n",
+				th_uparam_name.len, th_uparam_name.s,
+				REQ_LINE(msg).uri.len,REQ_LINE(msg).uri.s);
 		return -1;
+	}
 
 	out.s = th_mask_decode(eval.s, eval.len,
 				&th_uparam_prefix, 0, &out.len);
 	if(out.s==NULL)
 	{
-		LM_ERR("cannot decode r-uri\n");
+		LM_ERR("cannot decode r-uri [%.*s]\n",
+				REQ_LINE(msg).uri.len,REQ_LINE(msg).uri.s);
 		return -1;
 	}
 
@@ -931,7 +963,12 @@ int th_add_via_cookie(sip_msg_t *msg, struct via_body *via)
 	if (via->params.s) {
 		viap = via->params.s - via->hdr.s - 1;
 	} else {
-		viap = via->host.s - via->hdr.s + via->host.len;
+		if (via->host.s) {
+			viap = via->host.s - via->hdr.s + via->host.len;
+		} else {
+			LM_ERR("no via parameter and no via host, can't insert cookie\n");
+			return -1;
+		}
 		if (via->port!=0)
 			viap += via->port_str.len + 1; /* +1 for ':'*/
 	}

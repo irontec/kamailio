@@ -37,6 +37,7 @@
 #include "../../core/counters.h"
 #include "../../core/dset.h"
 #include "../../core/kemi.h"
+#include "../../core/fmsg.h"
 
 #include "t_var.h"
 #include "tmx_pretran.h"
@@ -318,6 +319,8 @@ static int t_cancel_branches_helper(sip_msg_t* msg, int n)
 	if(tcx != NULL)
 		idx = tcx->branch_index;
 	init_cancel_info(&cancel_data);
+	/* tm function: prepare_to_cancel(struct cell *t, branch_bm_t *cancel_bm,
+	                                                branch_bm_t skip_branches) */
 	switch(n) {
 		case 1:
 			/* prepare cancel for every branch except idx (others) */
@@ -329,6 +332,7 @@ static int t_cancel_branches_helper(sip_msg_t* msg, int n)
 			if(msg->first_line.u.reply.statuscode>=200)
 				break;
 			cancel_data.cancel_bitmap = 1<<idx;
+			 _tmx_tmb.prepare_to_cancel(t, &cancel_data.cancel_bitmap, 0);
 			break;
 		default:
 			/* prepare cancel for all branches */
@@ -677,6 +681,11 @@ static int ki_t_suspend(sip_msg_t* msg)
 	unsigned int tindex;
 	unsigned int tlabel;
 	tm_cell_t *t = 0;
+
+	if(faked_msg_match(msg)) {
+		LM_ERR("suspending a faked request is not allowed\n");
+		return -1;
+	}
 
 	t=_tmx_tmb.t_gett();
 	if (t==NULL || t==T_UNDEFINED)
