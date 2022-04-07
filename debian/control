@@ -139,23 +139,6 @@ Description: IVOZ Provider - Kamailio 5.5.2 - Websocket module for kamailio
  .
  This package contains the module implementing WebSocket transport layer.
 
-Package: ivozprovider-kamailio-presence-modules
-Architecture: linux-any
-Multi-Arch: same
-Pre-Depends: ${misc:Pre-Depends}
-Depends: ivozprovider-kamailio (= ${binary:Version}),
-         ${misc:Depends},
-         ${shlibs:Depends}
-Description: IVOZ Provider - Kamailio 5.5.2 - SIP presence modules for Kamailio
- Kamailio is a very fast and flexible SIP (RFC3261)
- server. Written entirely in C, Kamailio can handle thousands calls
- per second even on low-budget hardware.
- .
- This package provides several Kamailio modules for implementing a presence
- server and presence user agent for rich presence, registrar-based presence,
- external triggered presence with SIMPLE and XCAP support, as well as a
- set of other SIP event packages..
-
 Package: ivozprovider-kamailio-extra-modules
 Architecture: linux-any
 Multi-Arch: same
