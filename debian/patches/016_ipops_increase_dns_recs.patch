@@ -1,0 +1,13 @@
+diff --git a/src/modules/ipops/ipops_pv.c b/src/modules/ipops/ipops_pv.c
+index 6e9d86b5a6..e033c47031 100644
+--- a/src/modules/ipops/ipops_pv.c
++++ b/src/modules/ipops/ipops_pv.c
+@@ -37,7 +37,7 @@
+ 
+ 
+ #define PV_DNS_ADDR 64
+-#define PV_DNS_RECS 32
++#define PV_DNS_RECS 64
+ 
+ typedef struct _sr_dns_record {
+ 	int type;
