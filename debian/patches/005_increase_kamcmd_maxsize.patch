@@ -1,0 +1,15 @@
+diff --git a/utils/kamcmd/kamcmd.c b/utils/kamcmd/kamcmd.c
+index 9e62c90722..3c9d07446f 100644
+--- a/utils/kamcmd/kamcmd.c
++++ b/utils/kamcmd/kamcmd.c
+@@ -68,8 +68,8 @@
+ 
+ #define IOVEC_CNT 20
+ #define MAX_LINE_SIZE 16*1024 /* for non readline mode */
+-#define MAX_REPLY_SIZE 128*1024
+-#define MAX_BODY_SIZE  128*1024
++#define MAX_REPLY_SIZE 2*1024*1024
++#define MAX_BODY_SIZE  2*1024*1024
+ #define MAX_BINRPC_ARGS 256
+ 
+ 
