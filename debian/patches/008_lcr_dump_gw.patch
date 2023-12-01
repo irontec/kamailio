@@ -1,8 +1,8 @@
 diff --git a/src/modules/lcr/lcr_rpc.c b/src/modules/lcr/lcr_rpc.c
-index 3a990c7d04..59449c5fc9 100644
+index 614d027e21..3520edc07d 100644
 --- a/src/modules/lcr/lcr_rpc.c
 +++ b/src/modules/lcr/lcr_rpc.c
-@@ -114,11 +114,21 @@ static void dump_gws(rpc_t *rpc, void *c)
+@@ -110,11 +110,19 @@ static void dump_gws(rpc_t *rpc, void *c)
  	unsigned int i, j;
  	struct gw_info *gws;
  
@@ -12,7 +12,6 @@ index 3a990c7d04..59449c5fc9 100644
 +		return;
 +	}
 +
-+
  	for(j = 1; j <= lcr_count_param; j++) {
  
  		gws = gw_pt[j];
@@ -20,7 +19,6 @@ index 3a990c7d04..59449c5fc9 100644
  		for(i = 1; i <= gws[0].ip_addr.u.addr32[0]; i++) {
 +			if(gw_id > 0 && gws[i].gw_id != gw_id)
 +				continue;
-+
- 			if (srec==NULL) {
+ 			if(srec == NULL) {
  				/* We create one array per lcr_id */
  				if(rpc->add(c, "{", &rec) < 0)
