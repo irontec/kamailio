@@ -1,0 +1,23 @@
+diff --git a/src/modules/lcr/lcr_mod.c b/src/modules/lcr/lcr_mod.c
+index 5e400ddd79..fb80fab4ca 100644
+--- a/src/modules/lcr/lcr_mod.c
++++ b/src/modules/lcr/lcr_mod.c
+@@ -2808,11 +2808,16 @@ void ping_timer(unsigned int ticks, void *param)
+ 
+ 			if(gws[i].state >= GW_PINGING) {
+ 
++				str extrahdr;
++				char hdr[128];
++				snprintf(hdr, 128, "X-Info-Gateway: %d", gws[i].gw_id);
++				extrahdr.s = hdr;
++				extrahdr.len = strlen(hdr);
+ 				uri.s = &(gws[i].uri[0]);
+ 				uri.len = gws[i].uri_len;
+-				LM_DBG("pinging gw uri %.*s\n", uri.len, uri.s);
++				LM_DBG("pinging gw uri %.*s (gw_id: %d)\n", uri.len, uri.s, gws[i].gw_id);
+ 
+-				set_uac_req(&uac_r, &ping_method, 0, 0, 0, TMCB_LOCAL_COMPLETED,
++				set_uac_req(&uac_r, &ping_method, &extrahdr, 0, 0, TMCB_LOCAL_COMPLETED,
+ 						ping_callback, (void *)&(gws[i]));
+ 				if(ping_socket_param.len > 0) {
+ 					uac_r.ssock = &ping_socket_param;
