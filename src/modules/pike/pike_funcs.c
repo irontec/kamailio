@@ -230,6 +230,8 @@ void clean_routine(unsigned int ticks, void *param)
 	if(is_list_empty(&head))
 		return;
 
+	LM_GEN1(pike_log_level, "Starting tree status checks\n");
+
 	/* process what we got -> don't forget to lock the tree!! */
 	for(i = 0; i < MAX_IP_BRANCHES; i++) {
 		/* if no element from this branch -> skip it */
@@ -258,7 +260,7 @@ void clean_routine(unsigned int ticks, void *param)
 				continue;
 
 			/* process the node */
-			LM_DBG("clean node %p (kids=%p; hits=[%d,%d];leaf=[%d,%d])\n", node,
+			LM_GEN1(pike_log_level, "clean node %p (kids=%p; hits=[%d,%d];leaf=[%d,%d])\n", node,
 					node->kids, node->hits[PREV_POS], node->hits[CURR_POS],
 					node->leaf_hits[PREV_POS], node->leaf_hits[CURR_POS]);
 			/* if it's a node, leaf for an ipv4 address inside an
@@ -291,13 +293,15 @@ void clean_routine(unsigned int ticks, void *param)
 						}
 					}
 				}
-				LM_DBG("rmv node %p[%d] \n", node, node->byte);
+				LM_GEN1(pike_log_level, "rmv node %p[%d] \n", node, node->byte);
 				/* del the node */
 				remove_node(node);
 			}
 		} /* for all expired elements */
 		unlock_tree_branch(i);
 	} /* for all branches */
+
+	LM_GEN1(pike_log_level, "Done tree status checks\n");
 }
 
 
@@ -323,6 +327,8 @@ void swap_routine(unsigned int ticks, void *param)
 	pike_ip_node_t *node;
 	int i;
 
+	LM_GEN1(pike_log_level, "Starting sampling data swap\n");
+
 	/* LM_DBG("entering \n"); */
 	for(i = 0; i < MAX_IP_BRANCHES; i++) {
 		node = get_tree_branch(i);
@@ -334,4 +340,5 @@ void swap_routine(unsigned int ticks, void *param)
 			unlock_tree_branch(i);
 		}
 	}
+	LM_GEN1(pike_log_level, "Done sampling data swap\n");
 }
