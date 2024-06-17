@@ -1,8 +1,8 @@
 diff --git a/src/modules/dialog/dialog.c b/src/modules/dialog/dialog.c
-index 7e5b00425b..236d562dac 100644
+index e937947432..d3d93a51dc 100644
 --- a/src/modules/dialog/dialog.c
 +++ b/src/modules/dialog/dialog.c
-@@ -2543,6 +2543,44 @@ static void internal_rpc_profile_print_dlgs(rpc_t *rpc, void *c, str *profile_na
+@@ -3071,6 +3071,44 @@ static void internal_rpc_profile_print_dlgs(
  	lock_release(&profile->lock);
  }
  
@@ -47,24 +47,24 @@ index 7e5b00425b..236d562dac 100644
  /*
   * Wrapper around is_known_dlg().
   */
-@@ -2594,6 +2632,9 @@ static const char *rpc_profile_get_size_doc[2] = {
+@@ -3112,6 +3150,9 @@ static const char *rpc_profile_get_size_doc[2] = {
+ 		"Returns the number of dialogs belonging to a profile", 0};
  static const char *rpc_profile_print_dlgs_doc[2] = {
- 	"Lists all the dialogs belonging to a profile", 0
- };
+ 		"Lists all the dialogs belonging to a profile", 0};
 +static const char *rpc_profile_end_dlgs_doc[2] = {
-+	"End all the dialogs belonging to a profile", 0
++		"End all the dialogs belonging to a profile", 0
 +};
  static const char *rpc_dlg_bridge_doc[2] = {
- 	"Bridge two SIP addresses in a call using INVITE(hold)-REFER-BYE mechanism:"
- 		" to, from, [outbound SIP proxy]", 0
-@@ -2808,7 +2849,18 @@ static void rpc_profile_print_dlgs(rpc_t *rpc, void *c) {
- 	}
+ 		"Bridge two SIP addresses in a call using INVITE(hold)-REFER-BYE "
+ 		"mechanism:"
+@@ -3341,6 +3382,19 @@ static void rpc_profile_print_dlgs(rpc_t *rpc, void *c)
  	return;
  }
+ 
 +static void rpc_profile_end_dlgs(rpc_t *rpc, void *c) {
 +	str profile_name = {NULL,0};
 +	str value = {NULL,0};
- 
++
 +	if (rpc->scan(c, ".S", &profile_name) < 1) return;
 +	if (rpc->scan(c, "*.S", &value) > 0) {
 +		internal_rpc_profile_end_dlgs(rpc, c, &profile_name, &value);
@@ -73,17 +73,19 @@ index 7e5b00425b..236d562dac 100644
 +	}
 +	return;
 +}
- static void rpc_dlg_bridge(rpc_t *rpc, void *c) {
- 	str from = {NULL,0};
- 	str to = {NULL,0};
-@@ -3175,6 +3227,7 @@ static rpc_export_t rpc_methods[] = {
- 	{"dlg.end_dlg", rpc_end_dlg_entry_id, rpc_end_dlg_entry_id_doc, 0},
- 	{"dlg.profile_get_size", rpc_profile_get_size, rpc_profile_get_size_doc, 0},
- 	{"dlg.profile_list", rpc_profile_print_dlgs, rpc_profile_print_dlgs_doc, RET_ARRAY},
-+	{"dlg.profile_end", rpc_profile_end_dlgs, rpc_profile_end_dlgs_doc, RET_ARRAY},
- 	{"dlg.bridge_dlg", rpc_dlg_bridge, rpc_dlg_bridge_doc, 0},
- 	{"dlg.terminate_dlg", rpc_dlg_terminate_dlg, rpc_dlg_terminate_dlg_doc, 0},
- 	{"dlg.set_state", rpc_dlg_set_state, rpc_dlg_set_state_doc, 0},
++
+ static void rpc_dlg_bridge(rpc_t *rpc, void *c)
+ {
+ 	str from = {NULL, 0};
+@@ -3745,6 +3799,8 @@ static rpc_export_t rpc_methods[] = {
+ 				0},
+ 		{"dlg.profile_list", rpc_profile_print_dlgs, rpc_profile_print_dlgs_doc,
+ 				RET_ARRAY},
++		{"dlg.profile_end", rpc_profile_end_dlgs, rpc_profile_end_dlgs_doc,
++				RET_ARRAY},
+ 		{"dlg.bridge_dlg", rpc_dlg_bridge, rpc_dlg_bridge_doc, 0},
+ 		{"dlg.terminate_dlg", rpc_dlg_terminate_dlg, rpc_dlg_terminate_dlg_doc,
+ 				0},
 diff --git a/src/modules/dialog/dlg_profile.c b/src/modules/dialog/dlg_profile.c
 index f9ad20f812..b5d09a5363 100644
 --- a/src/modules/dialog/dlg_profile.c
