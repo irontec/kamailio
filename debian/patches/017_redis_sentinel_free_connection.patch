@@ -1,0 +1,50 @@
+diff --git a/src/modules/ndb_redis/redis_client.c b/src/modules/ndb_redis/redis_client.c
+index c9280991ff..f16571da06 100644
+--- a/src/modules/ndb_redis/redis_client.c
++++ b/src/modules/ndb_redis/redis_client.c
+@@ -199,6 +199,7 @@ int redisc_init(void)
+ 							port = atoi(res->element[1]->str);
+ 							LM_DBG("sentinel replied: %s:%d\n", addr, port);
+ 							srvfound = 1;
++							freeReplyObject(res);
+ 						}
+ 					} else {
+ 						res = redisCommand(
+@@ -219,12 +220,14 @@ int redisc_init(void)
+ 										break;
+ 									}
+ 								}
++								freeReplyObject(res);
+ 							}
+ 							LOG(ndb_redis_debug, "slave for %s: %s:%d\n",
+ 									sentinel_group, addr, port);
+ 							srvfound = 1;
+ 						}
+ 					}
++					redisFree(redis);
+ 				}
+ 				if(srvfound == 1) {
+ 					break;
+@@ -557,6 +560,7 @@ int redisc_reconnect_server(redisc_server_t *rsrv)
+ 						LOG(ndb_redis_debug, "sentinel replied: %s:%d\n", addr,
+ 								port);
+ 						srvfound = 1;
++						freeReplyObject(res);
+ 					}
+ 				} else {
+ 					res = redisCommand(
+@@ -577,12 +581,14 @@ int redisc_reconnect_server(redisc_server_t *rsrv)
+ 									break;
+ 								}
+ 							}
++							freeReplyObject(res);
+ 						}
+ 						LOG(ndb_redis_debug, "slave for %s: %s:%d\n",
+ 								sentinel_group, addr, port);
+ 						srvfound = 1;
+ 					}
+ 				}
++				redisFree(redis);
+ 			}
+ 			if(srvfound == 1) {
+ 				break;
