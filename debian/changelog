@@ -1,0 +1,206 @@
+ivozprovider-kamailio (4.1~5.8.2) UNRELEASED; urgency=medium
+
+  * Version bump to 4.1
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Thu, 27 Jun 2024 12:00:34 +0200
+
+ivozprovider-kamailio (4.0~5.8.2) stable; urgency=medium
+
+  * Version bump to 4.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Thu, 16 Nov 2023 11:06:02 +0100
+
+ivozprovider-kamailio (3.2~5.6.2) stable; urgency=medium
+
+  * Version bump to 3.2.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Mon, 02 Oct 2023 16:34:43 +0200
+
+ivozprovider-kamailio (3.1~5.6.2) stable; urgency=medium
+
+  * Version bump to 3.1.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Wed, 05 Apr 2023 17:33:45 +0200
+
+ivozprovider-kamailio (3.0~5.6.0) stable; urgency=medium
+
+  * Version bump to 3.0.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Thu, 14 Jul 2022 13:30:28 +0200
+
+ivozprovider-kamailio (2.22~5.1.10) stable; urgency=medium
+
+  * Version bump to 2.22.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Wed, 16 Nov 2022 10:29:13 +0100
+
+ivozprovider-kamailio (2.20~5.1.10) stable; urgency=medium
+
+  * Version bump to 2.20.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Wed, 23 Feb 2022 17:50:06 +0200
+
+ivozprovider-kamailio (2.19~5.1.10) stable; urgency=medium
+
+  * Version bump to 2.19.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Tue, 28 Sep 2021 17:00:06 +0200
+
+ivozprovider-kamailio (2.18~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.18.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Tue, 28 Sep 2021 16:59:57 +0200
+
+ivozprovider-kamailio (2.17~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.17.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Tue, 15 Jun 2021 12:01:47 +0200
+
+ivozprovider-kamailio (2.16~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.16.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Mon, 28 Dec 2020 11:46:09 +0100
+
+ivozprovider-kamailio (2.15~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.15.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Wed, 10 Jun 2020 15:35:21 +0200
+
+ivozprovider-kamailio (2.14~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.14.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Wed, 05 Feb 2020 16:52:44 +0100
+
+ivozprovider-kamailio (2.13~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.13.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Wed, 18 Dec 2019 13:33:13 +0100
+
+ivozprovider-kamailio (2.12~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.12.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Wed, 09 Oct 2019 13:07:18 +0200
+
+ivozprovider-kamailio (2.11~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.11.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Fri, 26 Jul 2019 16:47:50 +0200
+
+ivozprovider-kamailio (2.10~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.10.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Mon, 29 Apr 2019 16:20:37 +0200
+
+ivozprovider-kamailio (2.9~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.9.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Thu, 14 Mar 2019 17:53:16 +0100
+
+ivozprovider-kamailio (2.8~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.8.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Wed, 26 Dec 2018 11:08:10 +0100
+
+ivozprovider-kamailio (2.7~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.7.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Mon, 05 Nov 2018 13:24:55 +0100
+
+ivozprovider-kamailio (2.6~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.6.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Thu, 16 Aug 2018 11:43:56 +0200
+
+ivozprovider-kamailio (2.5~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.5.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Fri, 20 Jul 2018 13:40:04 +0200
+
+ivozprovider-kamailio (2.4~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.4.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Mon, 02 Jul 2018 11:04:07 +0200
+
+ivozprovider-kamailio (2.3~5.1.2) stable; urgency=medium
+
+  * Version bump 2.3.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Wed, 20 Jun 2018 11:41:20 +0200
+
+ivozprovider-kamailio (2.2~5.1.2) stable; urgency=medium
+
+  * Version bump to 2.2.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Thu, 31 May 2018 12:37:20 +0200
+
+ivozprovider-kamailio (2.1~4.4.6) stable; urgency=medium
+
+  * Version bump to 2.1.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Tue, 10 Apr 2018 18:07:03 +0200
+
+ivozprovider-kamailio (2.0~4.4.6) stable; urgency=medium
+
+  [ Irontec Package Team ]
+  * Version bump to 2.0.0
+
+ -- Irontec IvozProvider Team <ivozprovider@irontec.com>  Wed, 28 Mar 2018 12:51:23 +0200
+
+ivozprovider-kamailio (1.6.0) stable; urgency=medium
+
+  [ Irontec IvozProvider Team ]
+  * Version bump to 1.6.0
+
+ -- Irontec Package Team <packages@irontec.com>  Mon, 11 Sep 2017 12:28:18 +0200
+
+ivozprovider-kamailio (1.5.0) stable; urgency=medium
+
+  * Version bump to 1.5.0
+
+ -- Irontec Package Team <packages@irontec.com>  Tue, 04 Jul 2017 15:50:48 +0200
+
+ivozprovider-kamailio (1.4.0) stable; urgency=medium
+
+  * Version bump to 1.4.0
+
+ -- Irontec Package Team <packages@irontec.com>  Thu, 01 Jun 2017 19:16:10 +0200
+
+ivozprovider-kamailio (1.3.0) stable; urgency=medium
+
+  * Version bump to 1.3.0
+
+ -- Irontec Package Team <packages@irontec.com>  Thu, 01 Jun 2017 19:16:10 +0200
+
+ivozprovider-kamailio (1.2.0) stable; urgency=medium
+
+  * Version bump to 1.2.0
+
+ -- Irontec Package Team <packages@irontec.com>  Fri, 07 Apr 2017 12:07:53 +0200
+
+ivozprovider-kamailio (1.1.0) stable; urgency=medium
+
+  * Version bump to 1.1.0
+  * Reversioned to display ivozprovider version: APT will consider this a downgroad
+
+ -- Irontec Package Team <packages@irontec.com>  Mon, 14 Nov 2016 19:12:30 +0100
+
+ivozprovider-kamailio (4.4.3) stable; urgency=medium
+
+  * IvozProvider Kamailio version import based on kamailio 4.4.3
+
+ -- Irontec Package Team <packages@irontec.com>  Wed, 26 Oct 2016 17:22:01 +0200
